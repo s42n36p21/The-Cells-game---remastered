@@ -11,6 +11,9 @@ from TCGCell import Energy, get_color
 from TCGBoard import GameStateAttribute as GSA, GameBoard
 from TCGtools import Cursor, HoverInspector
 from TCGBoard import Modes
+import json
+
+
 
 class IGame(pyglet.window.Window):
     def __init__(self, *args, tps=60, **kwargs):
@@ -59,7 +62,15 @@ class HotKeys:
             s = game.save()
             
             game.build(s)
-            self.master.game.restart(Modes.OLD)                
+            self.master.game.restart(Modes.CLASSIC)   
+        
+        elif key == pyglet.window.key.P:
+            game: GameBoard  = self.master.game
+            s = game.save()
+            from time import time
+            with open(f'{time()}.json', 'w', encoding='utf-8') as file:
+                json.dump(s, file, ensure_ascii=False, indent=4)
+                     
         elif key == pyglet.window.key.B:
             bg = [f'b{i}' for i in range(1, 9)]
             idx = bg.index(settings.background) + 1
@@ -107,6 +118,10 @@ class HotKeys:
                 from TCGBoard import Tools
                 self.master.game.state._tool = [Tools.CREATE, Tools.LINK, Tools.DELETE][tool.index(key)]
                 self.master.game.state._select = None
+                
+        elif key == pyglet.window.key._4:
+            if self.master.game.phase() == GSA.EDIT:
+                self.master.game.state._type = (self.master.game.state._type + 1) % len(self.master.game.state.CELL_TYPES)
 
         elif key == pyglet.window.key.Z:
             if self.master.game.phase() == GSA.WATING:
@@ -116,7 +131,7 @@ class HotKeys:
         elif key == pyglet.window.key.Q:
             
             self.master.game.players.players.clear()
-            self.master.game.join(*get_players(2))
+            self.master.game.join(*get_players(3))
 
 def create_simple_scheme(r, c):
     scheme = ''
@@ -142,7 +157,9 @@ def get_players(count):
     return p[:count]
 
 
-SCHEME = create_simple_scheme(0, 0)
+SCHEME = create_simple_scheme(3, 3)
+with open('3x3.json', 'r', encoding='utf-8') as file:
+    SCHEME = json.load(file)
 PLAYERS = get_players(3)
 
 
@@ -163,7 +180,7 @@ class Game(IGame):
         self.game = game = GameBoard(self)
         game.build(SCHEME)
         game.join(*PLAYERS)
-        game.restart(Modes.OLD)
+        game.restart(Modes.CLASSIC)
         self.camera._zoom = 2
 
         self.cursor = Cursor(self)
@@ -175,13 +192,26 @@ class Game(IGame):
 
         self.player.attach_camera(self.camera)
         
+        with open('server.json', 'r', encoding='utf-8') as file:
+            server = json.load(file)
+            
+       # self.network = NetworkManager(self)
+       # self.network.connect(host=server.get("ip"),
+       #                      port=server.get("port"),
+       #                      player_name=server.get("name"))
+       # 
+        
     def on_mouse_press(self, x, y, button, modifiers):
         x, y = self.camera.screen_to_world(x, y)
         self.game.on_mouse_press(x, y, button, modifiers)
+        
+    #def on_mouse_drag(self, x, y, dx, dy, buttons, modifiers):
+    #    x, y = self.camera.screen_to_world(x, y)
+    #    self.game.on_mouse_press(x, y, buttons, modifiers)
 
     def debug(self):
         x ,y = self.camera.screen_to_world(self.mouse.data.get('x',0), self.mouse.data.get('y',0))
-        game = f'Phase: {self.game.phase().name}\n' + (f'Tool: {self.game.state._tool.name}\nSelect: {self.game.state._select}' if self.game.phase() == GSA.EDIT else '')
+        game = f'Phase: {self.game.phase().name}\n' + (f'Tool: {self.game.state._tool.name}\nSelect: {self.game.state._select}\nCellType: {self.game.state._type}' if self.game.phase() == GSA.EDIT else '')
         return f'Cursor world position: x={x} y={y}\n' + game
 
     def on_draw(self):

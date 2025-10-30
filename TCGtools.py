@@ -80,3 +80,13 @@ class HoverInspector:
 
     def draw(self):
         self._batch.draw()
+        
+def link_cell(a, b, type=0):
+    match type:
+        case 0: # 1 --> 2
+            a.model.link(b.model)
+        case 1: # 1 <-> 2
+            link_cell(a, b)
+            link_cell(b, a)
+        case 2: # 1 <-- 2
+            link_cell(b, a)

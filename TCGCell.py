@@ -55,7 +55,7 @@ class Energy(Enum):
 def get_color(energy):
     return {
         Energy.NEUTRAL: (250,250,250),
-        Energy.OTHER: (192,192,192),
+        Energy.OTHER: (132,132,132),
             
         
         Energy.P1: (255, 150, 150),    # Теплый розовый
@@ -239,3 +239,43 @@ class Cell:
         
     def __repr__(self):
         return str(self.model)
+    
+class CloseCellModel(CellModel):
+    def __init__(self, position):
+        self._owner = None
+        super().__init__(position)
+        
+    
+    def hit(self, position=None, owner=None):
+        return None
+    
+    @property 
+    def owner(self):
+        return Energy.OTHER
+    
+    @owner.setter
+    def owner(self, value):
+        self._owner = value
+        
+    def reaction(self):
+        if self.is_full():
+            self.power = 0
+            for cell in self.outgoing_links:
+                cell.charge(self._owner)
+            self.owner = Energy.NEUTRAL
+
+class CloseCell(Cell):
+    def __init__(self, position, batch):
+        self.model = CloseCellModel(position)
+        self.view = CellView(self.model, batch)
+        
+class VoidCellModel(CloseCellModel):
+    def charge(self, owner, amount=1):
+        return 
+    def is_full(self):
+        return 
+
+class VoidCell(Cell):
+    def __init__(self, position, batch):
+        self.model = VoidCellModel(position)
+        self.view = CellView(self.model, batch)

@@ -6,6 +6,8 @@ from enum import Enum, auto
 from typing import Literal
 from pyglet.math import Vec2
 from time import time
+from itertools import cycle
+from TCGtools import link_cell
 
 settings = Settings()
 settings.load()
@@ -131,6 +133,61 @@ class Modes(Enum):
     DOUBLING = auto()
     HIDDEN = auto()
     
+class Saver:
+    def __init__(self, cells):
+        self.cells = cells
+        
+    def save_classic(self):
+        cell_buffer = []
+        cells = []
+        links = []
+        index = 0
+        for pos, cell in self.cells.items():
+            cell.model.mark = index
+            cell_buffer.append(cell.model)
+            row, col = pos
+            cells.append(f'{row} {col}')
+            index += 1
+        index = 0
+        for c in cell_buffer:
+            out = {i.mark for i in c.outgoing_links}
+            in_ = {i.mark for i in c.incoming_links}
+            two = out & in_
+            out -= two
+            in_ -= two
+            
+            for ol in out:
+                if ol < index:
+                    continue
+                links.append(f'{index} {ol} 0')
+            for il in in_:
+                if il< index:
+                    continue
+                links.append(f'{index} {il} 2')
+            for tl in two:
+                if tl < index:
+                    continue
+                links.append(f'{index} {tl} 1')
+            index += 1
+        
+        
+        
+        return  {
+    "meta": {
+        "version": "0.0.1",
+        "name": "",
+        "creation_time": 0,
+        "description": "",
+        "author": None,
+        "modes": [Modes.CLASSIC.value],
+        "property": None
+    },
+    "scheme": {
+        "scanfmt": "ROW COL \\ CI0 CI1 TL",
+        "cells": ' '.join(cells),
+        "links": ' '.join(links)
+    }
+}
 
 class Builder:
     def __init__(self, scheme, batch):
@@ -142,8 +199,49 @@ class Builder:
     def get_product(self):
         return self.product
     
+    def build_classic(self):
+        self.build_task = self._build_classic()
+    
     def _build_classic(self):
-        pass
+        cells_d = dict()
+        scheme = self.scheme.get("scheme")
+        scanfmt: str = scheme.get("scanfmt")
+        cells = iter(scheme.get("cells").split())
+        links = iter(scheme.get("links").split())
+        cellf, linkf = scanfmt.lower().split('\\')
+        cellf = cellf.split()
+        linkf = linkf.split()
+        
+        cell_buffer = []
+        
+        
+        for args in zip(*([cells]*len(cellf))):
+            d = self._read_scan_str(cellf, args)
+            row, col = int(d.get('row')), int(d.get('col'))
+            cell = Cell((row, col), self.batch)
+            cell_buffer.append(cell)
+            yield
+            
+        for args in zip(*([links]*len(linkf))):
+            d = self._read_scan_str(linkf, args)
+            c1, c2, tl = int(d.get('ci0')), int(d.get('ci1')), int(d.get('tl'))
+            a, b = cell_buffer[c1], cell_buffer[c2]
+            link_cell(a, b, type=tl)
+            yield
+          
+        for cell in cell_buffer:
+            cell: Cell
+            cell.view.render_sides()
+            cell.view.render_sensor()
+            cell.view.update()
+            cells_d[cell.model.position] = cell
+            yield
+
+        self.product = cells_d
+        
+    @staticmethod
+    def _read_scan_str(fmt, args):
+        return dict(zip(fmt, args))
     
     def build_old(self):
         self.build_task = self._build_old()
@@ -423,17 +521,21 @@ class Tools(Enum):
     DELETE = auto()
 
 class GameBoardStateEdit(GameBoardState):
+    from TCGCell import CloseCell, VoidCell
+    CELL_TYPES = [Cell, CloseCell, VoidCell]
     def __init__(self, master):
         super().__init__(master)
 
         self._tool = Tools.CREATE
         self._select = None
+        self._type = 0
 
     def phase(self):
         return GameStateAttribute.EDIT
     
     def hit(self, row, col, player=None):
         cell: Cell =  self.master.cells.get((row, col))
+        row, col = map(int, [row, col])
         if cell is not None:
             match self._tool:
                 case Tools.DELETE:
@@ -448,7 +550,7 @@ class GameBoardStateEdit(GameBoardState):
                 case Tools.LINK:
                     if self._select is None:
                         self._select = cell
-                    elif get_side(self._select.model, cell.model):
+                    elif 1 or get_side(self._select.model, cell.model):
                         
                         self._select.model.link(cell.model)
                         self._select.view.render_sides()
@@ -458,7 +560,7 @@ class GameBoardStateEdit(GameBoardState):
         else:
             match self._tool:
                 case Tools.CREATE:
-                    new = Cell((row, col), self.master.batch)
+                    new = self.CELL_TYPES[self._type]((row, col), self.master.batch)
                     new.view.render_sides()
                     new.view.render_sensor()
                     new.view.update()
@@ -487,8 +589,9 @@ class GameBoard:
         self.builder = Builder(scheme, self.batch)
     
     def save(self):
-
-        return ' '.join([f'{int(r)} {int(w)}' for r, w in self.cells])
+        d = Saver(self.cells).save_classic()
+        print(d)
+        return d
     
     def restart(self, mod=Modes.OLD, ext=None): 
         for cell in self.cells.values():
@@ -551,3 +654,4 @@ EVENTS = [
 ]
 for event in EVENTS:
     EventableGameBoard.register_event_type('on_board_' + event)   
+    
