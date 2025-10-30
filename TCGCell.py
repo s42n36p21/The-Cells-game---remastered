@@ -24,11 +24,14 @@ def load_pixel_texture(filename):
 
 
 img_body = load_pixel_texture('src/cell.png')
+img_close_body = load_pixel_texture('src/close_cell.png')
+
 img_n = load_pixel_texture('src/N.png')
 img_e = load_pixel_texture('src/E.png')
 img_s = load_pixel_texture('src/S.png')
 img_w = load_pixel_texture('src/W.png')
 img_side = [img_n,img_e,img_s,img_w]
+
 
 TILE_SIZE = 64
 PAD = 16
@@ -93,6 +96,9 @@ class CellModel:
     
     def is_full(self):
         return self.owner != Energy.NEUTRAL and self.power >= self.lim_power()
+    
+    def is_considered(self):
+        return self.owner != Energy.NEUTRAL
     
     def lim_power(self):
         return len(self.outgoing_links)
@@ -193,7 +199,7 @@ class CellView:
             f_side |= get_side(self.model, cell)
         
         row, col = self.model.position
-        self.sides = [Sprite(img_side[index], col*TILE_SIZE, row*TILE_SIZE, batch=self.batch, group=self.BODY_GROUP) \
+        self.sides = [Sprite(img_side[index], col*TILE_SIZE, row*TILE_SIZE, batch=self.batch, group=self.PARTICLE_GROUP) \
             for index, side in enumerate([N, E, S, W]) if side & f_side]
                    
     def render_sensor(self):
@@ -245,41 +251,69 @@ class Cell:
         return str(self.model)
     
 class CloseCellModel(CellModel):
-    def __init__(self, position):
-        self._owner = None
-        super().__init__(position)
-        
-    
     def hit(self, position=None, owner=None):
         return None
-    
-    @property 
-    def owner(self):
-        return Energy.OTHER
-    
-    @owner.setter
-    def owner(self, value):
-        self._owner = value
         
     def reaction(self):
         if self.is_full():
             self.power = 0
             for cell in self.outgoing_links:
-                cell.charge(self._owner)
+                cell.charge(self.owner)
             self.owner = Energy.NEUTRAL
+            
+    def is_considered(self):
+        return 
+
+class CloseCellView(CellView):
+    def __init__(self, cell_model, batch=None):
+        self.model = cell_model
+        self.batch = batch or Batch()
+        
+        row, col = cell_model.position
+        self.display = Rectangle(col*TILE_SIZE+PAD, row*TILE_SIZE+PAD, TILE_SIZE-PAD*2, TILE_SIZE-PAD*2,
+                                 color=(0,0,0,255), batch=batch, group=self.SENSOR_GROUP)
+        self.body = Sprite(img_close_body, col*TILE_SIZE, row*TILE_SIZE, batch=batch, group=self.BODY_GROUP)
+        self.sides = []
+        self.sensor = None
+        
 
 class CloseCell(Cell):
     def __init__(self, position, batch):
         self.model = CloseCellModel(position)
-        self.view = CellView(self.model, batch)
+        self.view = CloseCellView(self.model, batch)
+        
+class VoidCellView(CellView):
+    def render_sensor(self):
+        VOID_COLOR = [31]*3
+        
+        if self.sensor is not None:
+            self.sensor.delete()
+        
+        row, col = self.model.position
+        cx, cy = col*TILE_SIZE + TILE_SIZE/2, row*TILE_SIZE + TILE_SIZE/2
+        
+        if settings.sensor_type:
+            lim_power = self.model.lim_power() or float('inf')
+            progress = self.model.power / lim_power
+            self.sensor = Sector(cx, cy, TILE_SIZE/3, None, 0, start_angle=90,color=VOID_COLOR, group=self.SENSOR_GROUP, batch=self.batch)
+        else:
+            self.sensor = Label("X", cx, cy+1, anchor_x='center', anchor_y='center', color=VOID_COLOR, font_size=12, weight='bold', group=self.SENSOR_GROUP, batch=self.batch)
+    
+        
+    def update(self):
+        return 
         
 class VoidCellModel(CloseCellModel):
     def charge(self, owner, amount=1):
         return 
     def is_full(self):
         return 
-
+    def link(self, other):
+        return 
+    
 class VoidCell(Cell):
     def __init__(self, position, batch):
         self.model = VoidCellModel(position)
-        self.view = CellView(self.model, batch)
+        self.view = VoidCellView(self.model, batch)
+        
+    

@@ -1,0 +1,16 @@
+{
+    "meta": {
+        "version": "0.0.1",
+        "name": "",
+        "creation_time": 0,
+        "description": "",
+        "author": null,
+        "modes": [2],
+        "property": null
+    },
+    "scheme": {
+        "scanfmt": "ROW COL \\ CI0 CI1 TL",
+        "cells": "0 0 0 1 1 0 1 1",
+        "links": "0 1 1 0 2 1 2 3 1 1 3 1"
+    }
+}

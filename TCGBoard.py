@@ -7,7 +7,7 @@ from typing import Literal
 from pyglet.math import Vec2
 from time import time
 from itertools import cycle
-from TCGtools import link_cell
+
 
 settings = Settings()
 settings.load()
@@ -132,6 +132,16 @@ class Modes(Enum):
     RECHARGED = auto()
     DOUBLING = auto()
     HIDDEN = auto()
+    EXTENDED = auto()
+    
+class GameStateAttribute(Enum):
+    DEFAULT = auto()
+    READY = auto()
+    WATING = auto()
+    REACTION = auto()
+    FINISH = auto()
+    EDIT = auto()
+    BUILD = auto()
     
 class Saver:
     def __init__(self, cells):
@@ -188,7 +198,7 @@ class Saver:
         "links": ' '.join(links)
     }
 }
-
+from TCGtools import link_cell
 class Builder:
     def __init__(self, scheme, batch):
         self.scheme = scheme
@@ -330,14 +340,6 @@ class ParticleManager:
             p.destroy()
         self.contain.clear()    
     
-class GameStateAttribute(Enum):
-    DEFAULT = auto()
-    READY = auto()
-    WATING = auto()
-    REACTION = auto()
-    FINISH = auto()
-    EDIT = auto()
-    BUILD = auto()
     
 class GameBoardState:
     def __init__(self, master: 'GameBoard'):
@@ -486,7 +488,8 @@ class GameBoardStateReaction(GameBoardState):
                 cell.model.fill()
                 cell.view.update()
                 f_full = f_full or cell.model.is_full()
-                lose.discard(cell.model.owner)
+                if cell.model.is_considered():
+                    lose.discard(cell.model.owner)
             for loser in lose:
                 self.master.players.kick(loser)
             if self.master.players.has_winner():

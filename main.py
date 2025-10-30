@@ -13,7 +13,7 @@ from TCGtools import Cursor, HoverInspector
 from TCGBoard import Modes
 import json
 
-
+from TCGBoard import GameBoardStateEdit, GameBoardStateWating, GameBoardStateReaction
 
 class IGame(pyglet.window.Window):
     def __init__(self, *args, tps=60, **kwargs):
@@ -107,7 +107,7 @@ class HotKeys:
             settings.save()
             
         elif key == pyglet.window.key.E:
-            from TCGBoard import GameBoardStateEdit, GameBoardStateWating
+            
             if self.master.game.phase() == GSA.EDIT:
                 self.master.game.state = GameBoardStateWating(self.master.game)
             elif self.master.game.phase() == GSA.WATING:
@@ -132,6 +132,9 @@ class HotKeys:
             
             self.master.game.players.players.clear()
             self.master.game.join(*get_players(3))
+            
+        elif key == pyglet.window.key.Y:
+            self.master.game.state = GameBoardStateReaction(self.master.game)
 
 def create_simple_scheme(r, c):
     scheme = ''
@@ -158,9 +161,9 @@ def get_players(count):
 
 
 SCHEME = create_simple_scheme(3, 3)
-with open('3x3.json', 'r', encoding='utf-8') as file:
+with open('scheme.json', 'r', encoding='utf-8') as file:
     SCHEME = json.load(file)
-PLAYERS = get_players(3)
+PLAYERS = get_players(2)
 
 
 
@@ -176,6 +179,7 @@ class Game(IGame):
         self.push_handlers(self.back_ground, self.camera)
 
         self.debuger = Debuger(self)
+        self.debuger.active = True
 
         self.game = game = GameBoard(self)
         game.build(SCHEME)
