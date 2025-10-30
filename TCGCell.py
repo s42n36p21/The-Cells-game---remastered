@@ -134,6 +134,10 @@ class CellModel:
         for cell in self.incoming_links:
             cell: CellModel
             cell.outgoing_links.remove(self)
+            
+        for cell in self.outgoing_links:
+            cell: CellModel
+            cell.incoming_links.remove(self)
     
     def __repr__(self):
         row, col = self.position
