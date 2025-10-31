@@ -11,8 +11,8 @@
         "property": null
     },
     "scheme": {
-        "scanfmt": "ROW COL \\ CI0 CI1 TL",
-        "cells": "0 0 0 1 1 0 1 1",
+        "scanfmt": "ROW COL TC \\ CI0 CI1 TL",
+        "cells": "0 0 0 0 1 0 1 0 0 1 1 0",
         "links": "0 1 2 0 2 2 1 3 2 2 3 2"
     }
 }

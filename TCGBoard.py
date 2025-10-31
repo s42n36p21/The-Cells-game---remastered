@@ -1,4 +1,4 @@
-from TCGCell import Cell, get_color, Energy, TILE_SIZE, get_side
+from TCGCell import Cell, get_color, Energy, TILE_SIZE, get_side, TYPE_CELL
 import pyglet
 from Settings import Settings
 from random import shuffle
@@ -129,10 +129,11 @@ class Players:
 class Modes(Enum):
     OLD = auto()
     CLASSIC = auto()
+    EXTENDED = auto()
     RECHARGED = auto()
     DOUBLING = auto()
     HIDDEN = auto()
-    EXTENDED = auto()
+    
     
 class GameStateAttribute(Enum):
     DEFAULT = auto()
@@ -186,7 +187,7 @@ class Saver:
     "meta": {
         "version": "0.0.2",
         "name": "",
-        "creation_time": 0,
+        "creation_time": time(),
         "description": "",
         "author": None,
         "modes": [Modes.CLASSIC.value],
@@ -198,6 +199,58 @@ class Saver:
         "links": ' '.join(links)
     }
 }
+    def save_extanded(self):
+        cell_buffer = []
+        cells = []
+        links = []
+        index = 0
+        for pos, cell in self.cells.items():
+            cell.model.mark = index
+            cell_buffer.append(cell.model)
+            row, col = pos
+            cells.append(f'{row} {col} {TYPE_CELL.index(type(cell))}')
+            index += 1
+        index = 0
+        for c in cell_buffer:
+            out = {i.mark for i in c.outgoing_links}
+            in_ = {i.mark for i in c.incoming_links}
+            two = out & in_
+            out -= two
+            in_ -= two
+            
+            for ol in out:
+                if ol < index:
+                    continue
+                links.append(f'{index} {ol} 0')
+            for il in in_:
+                if il< index:
+                    continue
+                links.append(f'{index} {il} 1')
+            for tl in two:
+                if tl < index:
+                    continue
+                links.append(f'{index} {tl} 2')
+            index += 1
+        
+        
+        
+        return  {
+    "meta": {
+        "version": "0.0.2",
+        "name": "",
+        "creation_time": time(),
+        "description": "",
+        "author": None,
+        "modes": [Modes.EXTENDED.value],
+        "property": None
+    },
+    "scheme": {
+        "scanfmt": "ROW COL TC\\ CI0 CI1 TL",
+        "cells": ' '.join(cells),
+        "links": ' '.join(links)
+    }
+}
+        
 from TCGtools import link_cell
 class Builder:
     def __init__(self, scheme, batch):
@@ -229,6 +282,46 @@ class Builder:
             d = self._read_scan_str(cellf, args)
             row, col = int(d.get('row')), int(d.get('col'))
             cell = Cell((row, col), self.batch)
+            cell_buffer.append(cell)
+            yield
+            
+        for args in zip(*([links]*len(linkf))):
+            d = self._read_scan_str(linkf, args)
+            c1, c2, tl = int(d.get('ci0')), int(d.get('ci1')), int(d.get('tl'))
+            a, b = cell_buffer[c1], cell_buffer[c2]
+            link_cell(a, b, type=tl)
+            yield
+          
+        for cell in cell_buffer:
+            cell: Cell
+            cell.view.render_sides()
+            cell.view.render_sensor()
+            cell.view.update()
+            cells_d[cell.model.position] = cell
+            yield
+
+        self.product = cells_d
+        
+    def build_extended(self):
+        self.build_task = self._build_extended()
+        
+    def _build_extended(self):
+        cells_d = dict()
+        scheme = self.scheme.get("scheme")
+        scanfmt: str = scheme.get("scanfmt")
+        cells = iter(scheme.get("cells").split())
+        links = iter(scheme.get("links").split())
+        cellf, linkf = scanfmt.lower().split('\\')
+        cellf = cellf.split()
+        linkf = linkf.split()
+        
+        cell_buffer = []
+        
+        
+        for args in zip(*([cells]*len(cellf))):
+            d = self._read_scan_str(cellf, args)
+            row, col, tc = int(d.get('row')), int(d.get('col')), int(d.get('tc'))
+            cell = TYPE_CELL[tc]((row, col), self.batch)
             cell_buffer.append(cell)
             yield
             
@@ -560,7 +653,7 @@ class GameBoard:
         self.builder = Builder(scheme, self.batch)
     
     def save(self):
-        d = Saver(self.cells).save_classic()
+        d = Saver(self.cells).save_extanded()
         print(d)
         return d
     
@@ -577,6 +670,8 @@ class GameBoard:
                 self.builder.build_old()
             case Modes.RECHARGED:
                 self.builder.build_recharged()
+            case Modes.EXTENDED:
+                self.builder.build_extended()
             case _:
                 raise ValueError("Неизвестный режим игры")
         self.state = GameBoardStateBuild(self)        
@@ -626,3 +721,4 @@ EVENTS = [
 for event in EVENTS:
     EventableGameBoard.register_event_type('on_board_' + event)   
     
+print(Modes.EXTENDED.value)

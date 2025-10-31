@@ -57,7 +57,7 @@ class HotKeys:
             s = game.save()
             
             game.build(s)
-            self.master.game.restart(Modes.CLASSIC)   
+            self.master.game.restart(Modes.EXTENDED)   
         
         elif key == pyglet.window.key.P:
             game: GameBoard  = self.master.game
@@ -200,7 +200,7 @@ class TCGGame(Scene):
         self.game = game = GameBoard(self)
         game.build(SCHEME)
         game.join(*PLAYERS)
-        game.restart(Modes.CLASSIC)
+        game.restart(Modes.EXTENDED)
         self.camera._zoom = 2
 
         self.cursor = Cursor(self)
