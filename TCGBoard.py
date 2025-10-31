@@ -173,18 +173,18 @@ class Saver:
             for il in in_:
                 if il< index:
                     continue
-                links.append(f'{index} {il} 2')
+                links.append(f'{index} {il} 1')
             for tl in two:
                 if tl < index:
                     continue
-                links.append(f'{index} {tl} 1')
+                links.append(f'{index} {tl} 2')
             index += 1
         
         
         
         return  {
     "meta": {
-        "version": "0.0.1",
+        "version": "0.0.2",
         "name": "",
         "creation_time": 0,
         "description": "",
@@ -523,51 +523,19 @@ class Tools(Enum):
     LINK = auto()
     DELETE = auto()
 
+from TCGEditor import Editor
+
 class GameBoardStateEdit(GameBoardState):
-    from TCGCell import CloseCell, VoidCell
-    CELL_TYPES = [Cell, CloseCell, VoidCell]
     def __init__(self, master):
         super().__init__(master)
 
-        self._tool = Tools.CREATE
-        self._select = None
-        self._type = 0
+        self._editor = Editor(self)
 
     def phase(self):
         return GameStateAttribute.EDIT
     
-    def hit(self, row, col, player=None):
-        cell: Cell =  self.master.cells.get((row, col))
-        row, col = map(int, [row, col])
-        if cell is not None:
-            match self._tool:
-                case Tools.DELETE:
-                    out = [c for out_cell in cell.model.incoming_links if (c:=self.master.cells.get(out_cell.position)) is not None]
-                    cell.delete()
-                    self.master.cells.pop((row, col))
-                    for c in out:
-                        c: Cell
-                        c.view.render_sides()
-                        c.view.render_sensor()
-                        c.view.update()
-                case Tools.LINK:
-                    if self._select is None:
-                        self._select = cell
-                    elif 1 or get_side(self._select.model, cell.model):
-                        
-                        self._select.model.link(cell.model)
-                        self._select.view.render_sides()
-                        self._select.view.render_sensor()
-                        self._select.view.update()
-                        self._select = None
-        else:
-            match self._tool:
-                case Tools.CREATE:
-                    new = self.CELL_TYPES[self._type]((row, col), self.master.batch)
-                    new.view.render_sides()
-                    new.view.render_sensor()
-                    new.view.update()
-                    self.master.cells[(row, col)] = new
+    def update(self, dt):
+        self._editor.update(dt)
 
 class GameBoardStateReady(GameBoardState):
 

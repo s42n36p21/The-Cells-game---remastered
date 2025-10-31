@@ -11,9 +11,11 @@ from TCGCell import Energy, get_color
 from TCGBoard import GameStateAttribute as GSA, GameBoard
 from TCGtools import Cursor, HoverInspector
 from TCGBoard import Modes
+from Scene import Scene
 import json
 
 from TCGBoard import GameBoardStateEdit, GameBoardStateWating, GameBoardStateReaction
+
 
 class IGame(pyglet.window.Window):
     def __init__(self, *args, tps=60, **kwargs):
@@ -33,15 +35,7 @@ class IGame(pyglet.window.Window):
         pass
 
 
-class Scene(pyglet.event.EventDispatcher):
-    def __init__(self, master):
-        super().__init__()
-        self._master = master
-        
-        self.setup()
 
-    def setup(self):
-        pass
 
 settings = Settings()
 settings.load()
@@ -115,9 +109,10 @@ class HotKeys:
 
         elif key in tool:
             if self.master.game.phase() == GSA.EDIT:
-                from TCGBoard import Tools
-                self.master.game.state._tool = [Tools.CREATE, Tools.LINK, Tools.DELETE][tool.index(key)]
-                self.master.game.state._select = None
+                from TCGEditor import CreateCell, DeleteCell
+
+                self.master.game.state._editor.use([CreateCell, DeleteCell][tool.index(key)])
+                #self.master.game.state._select = None
                 
         elif key == pyglet.window.key._4:
             if self.master.game.phase() == GSA.EDIT:
@@ -166,19 +161,18 @@ with open('scheme.json', 'r', encoding='utf-8') as file:
 PLAYERS = get_players(2)
 
 
-
-class Game(IGame):
+class TCGGame(Scene):
     def setup(self):
         self.key = KeyStateHandler()
         self.mouse = MouseStateHandler()
         self.push_handlers(self.key, self.mouse)
 
         self.batch = pyglet.graphics.Batch()
-        self.camera = Camera(self)
-        self.back_ground = Background(settings.background, self)
+        self.camera = Camera(self._master)
+        self.back_ground = Background(settings.background, self._master)
         self.push_handlers(self.back_ground, self.camera)
 
-        self.debuger = Debuger(self)
+        self.debuger = Debuger(self._master)
         self.debuger.active = True
 
         self.game = game = GameBoard(self)
@@ -215,11 +209,10 @@ class Game(IGame):
 
     def debug(self):
         x ,y = self.camera.screen_to_world(self.mouse.data.get('x',0), self.mouse.data.get('y',0))
-        game = f'Phase: {self.game.phase().name}\n' + (f'Tool: {self.game.state._tool.name}\nSelect: {self.game.state._select}\nCellType: {self.game.state._type}' if self.game.phase() == GSA.EDIT else '')
+        game = f'Phase: {self.game.phase().name}\n' 
         return f'Cursor world position: x={x} y={y}\n' + game
 
-    def on_draw(self):
-        self.clear()
+    def draw(self):
         with self.camera:
             self.back_ground.draw()
             self.game.draw()
@@ -227,14 +220,28 @@ class Game(IGame):
         self.debuger.draw()
         self.cursor.draw()
 
-    def loop(self, dt):
-        self.update(dt)
+    def update(self, dt):
         self.player.update(dt)
         self.game.update(dt)
         if self.game.phase() == GSA.WATING:
             self.cursor.color = self.game.players.current()
             self.player.color = self.cursor.color
 
+
+class Game(IGame):
+    def setup(self):
+        self._scene = TCGGame(self)
+
+    def on_draw(self):
+        self.clear()
+        self._scene.draw()
+
+    def debug(self):
+        return self._scene.debug()
+
+    def loop(self, dt):
+        self.update(dt)
+        self._scene.update(dt)
 
 
 if __name__ == "__main__":

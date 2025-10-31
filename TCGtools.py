@@ -130,10 +130,10 @@ class HoverInspector:
         
 def link_cell(a, b, type=0):
     match type:
-        case 0: # 1 --> 2
+        case 0: # a --> b
             a.model.link(b.model)
-        case 1: # 1 <-> 2
+        case 1: # a <-- b
+            link_cell(b, a)
+        case 2: # a <-> b
+            link_cell(b, a)
             link_cell(a, b)
-            link_cell(b, a)
-        case 2: # 1 <-- 2
-            link_cell(b, a)

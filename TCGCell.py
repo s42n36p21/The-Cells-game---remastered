@@ -246,9 +246,15 @@ class Cell:
     def delete(self):
         self.model.delete()
         self.view.destroy()
+
+    def render(self):
+        self.view.render_sides()
+        self.view.render_sensor()
+        self.view.update()
         
     def __repr__(self):
         return str(self.model)
+
     
 class CloseCellModel(CellModel):
     def hit(self, position=None, owner=None):
@@ -316,4 +322,4 @@ class VoidCell(Cell):
         self.model = VoidCellModel(position)
         self.view = VoidCellView(self.model, batch)
         
-    
+TYPE_CELL = [Cell, CloseCell, VoidCell]
