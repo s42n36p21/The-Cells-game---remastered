@@ -46,10 +46,11 @@ class HotKeys:
         master.push_handlers(self)
 
     def on_key_press(self, key, mod):        
-        tool = [pyglet.window.key._1, pyglet.window.key._2, pyglet.window.key._3]
-        if key == pyglet.window.key._9:
+        tool = [pyglet.window.key._1, pyglet.window.key._2, pyglet.window.key._3, pyglet.window.key._4, pyglet.window.key._5, pyglet.window.key._6]
+        par = [pyglet.window.key._7, pyglet.window.key._8,pyglet.window.key._9, pyglet.window.key._0]
+        if key == pyglet.window.key.K:
             self.master.set_fullscreen(True)
-        elif key == pyglet.window.key._0:
+        elif key == pyglet.window.key.L:
             self.master.set_fullscreen(False)
         elif key == pyglet.window.key.R:
             game: GameBoard  = self.master.game
@@ -72,7 +73,7 @@ class HotKeys:
                 idx = 0
             settings.background = bg[idx]
             settings.save()
-            self.master.back_ground = Background(settings.background, self.master)
+            self.master.back_ground = Background(settings.background, self.master._master)
             self.master.push_handlers(self.master.back_ground)
         elif key == pyglet.window.key.V:
             if settings.sensor_type:
@@ -84,6 +85,12 @@ class HotKeys:
             for cell in self.master.game.cells.values():
                 cell.view.render_sensor()
                 cell.view.update()
+                
+        elif key == pyglet.window.key.F:
+            if self.master.player.camera is None:
+                self.master.player.attach_camera(self.master.camera)        
+            else:
+                self.master.player.detach_camera()
                 
         elif key == pyglet.window.key.C:
             if settings.chain_reaction:
@@ -109,15 +116,30 @@ class HotKeys:
 
         elif key in tool:
             if self.master.game.phase() == GSA.EDIT:
-                from TCGEditor import CreateCell, DeleteCell
+                from TCGEditor import CreateCell, DeleteCell, Link, UnLink, FlexLink, ClearLink
 
-                self.master.game.state._editor.use([CreateCell, DeleteCell][tool.index(key)])
+                self.master.game.state._editor.use([CreateCell, DeleteCell, Link, UnLink, FlexLink, ClearLink][tool.index(key)])
                 #self.master.game.state._select = None
+        
+        elif key in par:
+            
+            from TCGEditor import ToolBox, TYPE_CELL
+            p = par.index(key)
+            t: ToolBox  = self.master.game.state._editor.tool_box
+            match p:
+                case 0:
+                    t.AUTO_LINK = not t.AUTO_LINK                    
                 
-        elif key == pyglet.window.key._4:
-            if self.master.game.phase() == GSA.EDIT:
-                self.master.game.state._type = (self.master.game.state._type + 1) % len(self.master.game.state.CELL_TYPES)
-
+                case 1:
+                    t.OUT_LINK = not t.OUT_LINK
+                
+                case 2:
+                    t.IN_LINK = not t.IN_LINK
+                
+                case 3:
+                    t.TYPE_CELL = (t.TYPE_CELL + 1) % len(TYPE_CELL)
+                
+         
         elif key == pyglet.window.key.Z:
             if self.master.game.phase() == GSA.WATING:
                 c = self.master.game.players.current()   
@@ -173,7 +195,7 @@ class TCGGame(Scene):
         self.push_handlers(self.back_ground, self.camera)
 
         self.debuger = Debuger(self._master)
-        self.debuger.active = True
+        self.debuger.active = 1
 
         self.game = game = GameBoard(self)
         game.build(SCHEME)
@@ -209,7 +231,7 @@ class TCGGame(Scene):
 
     def debug(self):
         x ,y = self.camera.screen_to_world(self.mouse.data.get('x',0), self.mouse.data.get('y',0))
-        game = f'Phase: {self.game.phase().name}\n' 
+        game = f'Phase: {self.game.phase().name}\n' + '' if self.game.state.phase() != GSA.EDIT else self.game.state._editor.debug()
         return f'Cursor world position: x={x} y={y}\n' + game
 
     def draw(self):
@@ -245,7 +267,7 @@ class Game(IGame):
 
 
 if __name__ == "__main__":
-    app = Game(tps=60, caption="The Cells game - remastered", resizable=True)
-    pyglet.app.run()
+    app = Game(tps=120, caption="The Cells game - remastered", resizable=True)
+    pyglet.app.run(1/120)
 
     
