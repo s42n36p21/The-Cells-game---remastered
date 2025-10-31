@@ -16,11 +16,11 @@ class SoundEffects:
     SoundName = Literal['reaction', 'click', 'warn', 'start', 'game_over']
     
     sounds = {
-        'reaction': pyglet.media.load('src/sounds/boom.ogg', streaming=False),
-        'click': pyglet.media.load('src/sounds/button.ogg', streaming=False),
-        'warn': pyglet.media.load('src/sounds/error.ogg', streaming=False),
-        'start': pyglet.media.load('src/sounds/start.ogg', streaming=False),
-        'game_over': pyglet.media.load('src/sounds/win.ogg', streaming=False)
+        'reaction': pyglet.media.load('src/sounds/boom.wav', streaming=False),
+        'click': pyglet.media.load('src/sounds/button.wav', streaming=False),
+        'warn': pyglet.media.load('src/sounds/error.wav', streaming=False),
+        'start': pyglet.media.load('src/sounds/start.wav', streaming=False),
+        'game_over': pyglet.media.load('src/sounds/win.wav', streaming=False)
     }
     
     sound_enabled = settings.sound_effects

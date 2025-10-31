@@ -277,8 +277,8 @@ class Editor:
                _get_tool(self._tool, FlexLink) +  '5 - Гибкая связка\n' + \
                _get_tool(self._tool, ClearLink) +  '6 - Отчистить связи\n' + \
                _get_par_(self.tool_box.AUTO_LINK) +  '7 - Авто-связка\n' + \
-               _get_par_(self.tool_box.OUT_LINK) +  '8 - Входящии связи\n' + \
-               _get_par_(self.tool_box.IN_LINK) +  '9 - Выходящие связи\n' + \
+               _get_par_(self.tool_box.OUT_LINK) +  '8 - Выходящии связи\n' + \
+               _get_par_(self.tool_box.IN_LINK) +  '9 - Входящие связи\n' + \
                TYPE_CELL[self.tool_box.TYPE_CELL].__name__ + " : " +  '0 - Тип клетки\n'
     
     def use(self, tool):
