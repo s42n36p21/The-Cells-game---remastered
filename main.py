@@ -196,8 +196,8 @@ class Game(IGame):
 
         self.player.attach_camera(self.camera)
         
-        with open('server.json', 'r', encoding='utf-8') as file:
-            server = json.load(file)
+       # with open('server.json', 'r', encoding='utf-8') as file:
+       #     server = json.load(file)
             
        # self.network = NetworkManager(self)
        # self.network.connect(host=server.get("ip"),
