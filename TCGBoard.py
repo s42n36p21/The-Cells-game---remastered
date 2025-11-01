@@ -320,7 +320,7 @@ class Builder:
         
         for args in zip(*([cells]*len(cellf))):
             d = self._read_scan_str(cellf, args)
-            row, col, tc = int(d.get('row')), int(d.get('col')), int(d.get('tc'))
+            row, col, tc = int(d.get('row')), int(d.get('col')), int(d.get('tc', 0))
             cell = TYPE_CELL[tc]((row, col), self.batch)
             cell_buffer.append(cell)
             yield
@@ -652,10 +652,15 @@ class GameBoard:
     def build(self, scheme):
         self.builder = Builder(scheme, self.batch)
     
-    def save(self):
-        d = Saver(self.cells).save_extanded()
-        print(d)
-        return d
+    def save(self, mod=Modes.EXTENDED):
+        match mod:
+            case Modes.CLASSIC:
+                return Saver(self.cells).save_classic()
+            case Modes.EXTENDED:
+                 return Saver(self.cells).save_extanded()
+            case _:
+                raise ValueError("Неизвестный режим игры")
+        
     
     def restart(self, mod=Modes.OLD, ext=None): 
         for cell in self.cells.values():
