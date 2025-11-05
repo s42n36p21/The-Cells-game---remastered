@@ -54,6 +54,17 @@ class Energy(Enum):
     P6 = auto()
     P7 = auto()
     P8 = auto()
+    
+P_ENERGY = [
+    Energy.P1,
+    Energy.P2,
+    Energy.P3,
+    Energy.P4,
+    Energy.P5,
+    Energy.P6,
+    Energy.P7,
+    Energy.P8
+]
 
 def get_color(energy):
     return {

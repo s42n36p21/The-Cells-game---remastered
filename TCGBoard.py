@@ -46,6 +46,7 @@ class Players:
     def __init__(self, players=None):
         
         self.players = players or list()
+        self.ptr = None
     
     def join(self, *args):
         self.players.extend(args)
@@ -79,7 +80,7 @@ class Players:
         self.ptr = self.ptr.next
 
     def current(self):
-        return self.ptr.value
+        return self.ptr.value if self.ptr is not None else Energy.NEUTRAL
     
     def queue(self):
         lst = []
@@ -501,8 +502,12 @@ class GameBoardStateBuild(GameBoardState):
             return
         
         self.master.cells = self.master.builder.get_product()
-        self.switch_state(GameBoardStateWating)
-        self.master.players.restart()
+        
+        try:
+            self.master.players.restart()
+            self.switch_state(GameBoardStateWating)
+        except:
+            self.switch_state(GameBoardStateReady)
         SoundEffects.play('start')
     
     def draw(self):

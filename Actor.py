@@ -187,7 +187,7 @@ class Actor:
         self._batch.draw()
         
 class MoveableActor(Actor):
-    def __init__(self, position=(0, 0), name="Entity", color=(255, 255, 255, 127), speed=100, img=None, scan_type='news', anim_length=4, batch=None):
+    def __init__(self, position=(0, 0), name="Entity", color=(255, 255, 255, 127), speed=250, img=None, scan_type='news', anim_length=4, batch=None):
         super().__init__(position, name, color, img, scan_type, anim_length, batch)
         self._speed = speed
         self.anim_length = anim_length
@@ -217,7 +217,7 @@ class MoveableActor(Actor):
     def look(self, x, y):
         if not (x or y):
             return
-        if abs(x) < abs(y):
+        if (abs(x)+.1) < (abs(y)):
             heading = N if y > 0 else S
         else:
             heading = E if x > 0 else W
