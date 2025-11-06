@@ -200,7 +200,7 @@ PLAYERS = get_players(settings.amount_players)
 
 class TCGGame(Scene):
     def setup(self):
-        self.ui_batch = pyglet.graphics.Batch()
+        #self.ui_batch = pyglet.graphics.Batch()
 
         self.batch = pyglet.graphics.Batch()
         self.camera = Camera(self._master)
@@ -220,29 +220,17 @@ class TCGGame(Scene):
         self.hot_keys = HotKeys(self)
         self.hover = HoverInspector(self, self.game, self.batch)
         
-        
-        self.rp_batch = pyglet.graphics.Batch()
-        self.rp = {'д': Actor(name='Player0', position=[0,0], batch=self.rp_batch, img='src/actor.png')}
-
         self.player = Player(name="Kell", speed=250, img='src/actor.png', batch=self.batch)
         self.push_handlers(self.player)
 
         self.player.attach_camera(self.camera)
-        
-       # with open('server.json', 'r', encoding='utf-8') as file:
-       #     server = json.load(file)
-            
-       # self.network = NetworkManager(self)
-       # self.network.connect(host=server.get("ip"),
-       #                      port=server.get("port"),
-       #                      player_name=server.get("name"))
-       # 
-        self.panel = PanelTextButton('Кнопка', (30, 150,30), (30, 250,30), 20, 50, 50, 160, 100, (32,32,32, 128), (0,0,0, 128), 0.5, self.ui_batch)
-        self.panel.push_handlers(self) 
+ 
+        #self.panel = PanelTextButton('Кнопка', (30, 150,30), (30, 250,30), 20, 50, 50, 160, 100, (32,32,32, 128), (0,0,0, 128), 0.5, self.ui_batch)
+        #self.panel.push_handlers(self) 
         
         self.key = KeyStateHandler()
         self.mouse = MouseStateHandler()
-        self.push_handlers(self.key, self.mouse, self.panel)
+        self.push_handlers(self.key, self.mouse)
         self.flag = False
         
         
@@ -266,7 +254,7 @@ class TCGGame(Scene):
     def debug(self):
         x ,y = self.camera.screen_to_world(self.mouse.data.get('x',0), self.mouse.data.get('y',0))
         game = f'Phase: {self.game.phase().name}\n' + '' if self.game.state.phase() != GSA.EDIT else self.game.state._editor.debug()
-        return f'Cursor world position: x={x} y={y}\n' + game + f"Panel state = {type(self.panel.state)}"
+        return f'Cursor world position: x={x} y={y}\n' + game #+ f"Panel state = {type(self.panel.state)}"
 
     def draw(self):
         with self.camera:
@@ -274,9 +262,8 @@ class TCGGame(Scene):
             self.game.draw()
             
             self.batch.draw()
-            self.rp_batch.draw()
             
-        self.ui_batch.draw()
+#        self.ui_batch.draw()
         self.debuger.draw()
         self.cursor.draw()
 
@@ -284,10 +271,7 @@ class TCGGame(Scene):
         
         self.player.update(dt)
         self.game.update(dt)
-        self.panel.update(dt)
-        
-        for p in self.rp.values():
-            p.update(dt)
+        #self.panel.update(dt)  
         
         if self.game.phase() == GSA.WATING:
             self.cursor.color = self.game.players.current()
@@ -471,11 +455,54 @@ class TCGNetWorkGame(Scene):
             r,c = self.hits.pop(0)
             self.game.hit(r, c)
             self.flag = False
-        
+
+class Menu(Scene):
+    def setup(self):
+        self.batch = pyglet.graphics.Batch()
+
+        #self.camera = Camera(self._master)
+        self.back_ground = Background(settings.background, self._master)
+        self.push_handlers(self.back_ground)
+
+        w, h = self._master.size
+        px, py = 340, 300
+        bg = [(32,32,32, 128),(0,0,0, 128) ]
+        self.ui = [
+            PanelTextButton('Локальная игра', (50,50, 150), (50, 50, 250), 24, px, h-py/2-50, w-px*2, h/3-100, *bg, .5,batch=self.batch),
+            PanelTextButton("Сетевая игра", (50,150, 50), (50, 250, 50), 24, px, h-py/2-h/3-50, w-px*2, h/3-100, *bg, .5,batch=self.batch),
+            PanelTextButton("Выйти",(150,50, 50), (250, 50, 50), 24, px, h-py/2-h/3-h/3-50, w-px*2, h/3-100, *bg, .5,batch=self.batch ),
+        ]
+
+        for ui in self.ui:
+            ui.push_handlers(self)
+            self.push_handlers(ui)
+    
+    def draw(self):
+        self.back_ground.draw()
+        #   with self.camera:
+        self.batch.draw()
+
+    def on_widget_click(self, button):
+        print("FFFFFF")
+        cmd =  button.label.text
+        match cmd:
+            case 'Локальная игра':
+                self._master._scene = TCGGame(self._master)
+            case "Сетевая игра":
+                self._master._scene = TCGNetWorkGame(self._master)
+            case "Выйти":
+                pyglet.app.exit()
+
+    def update(self, dt):
+       # print("Запущена пидорская сцена")
+        for ui in self.ui:
+            ui.update(dt)
+
+
 class Game(IGame):
     def setup(self):
         #self._scene = TCGGame(self)
-        self._scene = TCGNetWorkGame(self)
+        self._scene = Menu(self)
 
     def on_draw(self):
         self.clear()
