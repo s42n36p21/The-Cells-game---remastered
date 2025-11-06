@@ -224,6 +224,7 @@ class TCGGame(Scene):
         self.push_handlers(self.player)
 
         self.player.attach_camera(self.camera)
+        self.camera.update_projection()
  
         #self.panel = PanelTextButton('Кнопка', (30, 150,30), (30, 250,30), 20, 50, 50, 160, 100, (32,32,32, 128), (0,0,0, 128), 0.5, self.ui_batch)
         #self.panel.push_handlers(self) 
@@ -316,7 +317,7 @@ class TCGNetWorkGame(Scene):
         self.client.push_handlers(self)
         message = {"code": Protocol.CODE.HELLO.value, "name": NAME, "password":NET.get('password')}
         message_bytes = json.dumps(message).encode()
-        
+        self.camera.update_projection()
         self.client.send(message_bytes)
         
         self.player.attach_camera(self.camera)
@@ -494,7 +495,7 @@ class Menu(Scene):
                 pyglet.app.exit()
 
     def update(self, dt):
-       # print("Запущена пидорская сцена")
+        print("Запущена пидорская сцена")
         for ui in self.ui:
             ui.update(dt)
 
