@@ -36,7 +36,7 @@ class ToolBox:
     IN_LINK = True
 
     NO_REPEAT = True
-    ONLY_NEIGHBORING = True
+    ONLY_NEIGHBORING = 0#True
 
     TYPE_CELL = 0
 

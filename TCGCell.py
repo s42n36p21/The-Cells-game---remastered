@@ -32,6 +32,17 @@ img_s = load_pixel_texture('src/S.png')
 img_w = load_pixel_texture('src/W.png')
 img_side = [img_n,img_e,img_s,img_w]
 
+img_2n = load_pixel_texture('src/2N.png')
+img_2e = load_pixel_texture('src/2E.png')
+img_2s = load_pixel_texture('src/2S.png')
+img_2w = load_pixel_texture('src/2W.png')
+img_2side = [img_2n,img_2e,img_2s,img_2w]
+
+img_n2n = load_pixel_texture('src/N2N.png')
+img_e2e = load_pixel_texture('src/E2E.png')
+img_s2s = load_pixel_texture('src/S2S.png')
+img_w2w = load_pixel_texture('src/W2W.png')
+img_D2side = [img_n2n,img_e2e,img_s2s,img_w2w]
 
 TILE_SIZE = 64
 PAD = 16
@@ -41,6 +52,23 @@ E = 1 << 1
 S = 1 << 2
 W = 1 << 3
 ALL = N | E | S | W
+
+_2N = 1 << 4
+_2E = 1 << 5
+_2S = 1 << 6
+_2W = 1 << 7
+
+N2N = N | _2N
+E2E = E | _2E
+S2S = S | _2S
+W2W = W | _2W
+
+SIDES = [N, E, S, W, # CLASSIC
+         _2N, _2E, _2S, _2W, # DOUBLE
+        N2N, E2E, S2S, W2W, # SPLIT
+        ]
+IMG = img_side + img_2side + img_D2side
+
 
 class Energy(Enum):
     NEUTRAL = auto()
@@ -164,25 +192,27 @@ class CellModel:
         
         return f'<Cell row={row} col={col} power={self.power} owner={self.owner.name}>'
     
-def get_side(cell:CellModel, other: CellModel):
+def get_side(cell:CellModel, other: CellModel, dist=1):
     r1, c1 = cell.position
     r2, c2 = other.position
     dx = (c2-c1)
     dy = (r2-r1)
 
     if dx == 0:
-        if dy == 1:
+        if dy == dist:
             return N
-        elif dy == -1:
+        elif dy == -dist:
             return S
     elif dy == 0:
-        if dx == 1:
+        if dx == dist:
             return E
-        elif dx == -1:
+        elif dx == -dist:
             return W
     
     return 0    
      
+
+
 
 class CellView:
     SENSOR_GROUP = Group(order=0)
@@ -211,10 +241,17 @@ class CellView:
         
         for cell in self.model.outgoing_links:
             f_side |= get_side(self.model, cell)
+        for cell in self.model.outgoing_links:
+            f_side |= get_side(self.model, cell, 2) << 4
         
         row, col = self.model.position
-        self.sides = [Sprite(img_side[index], col*TILE_SIZE, row*TILE_SIZE, batch=self.batch, group=self.PARTICLE_GROUP) \
-            for index, side in enumerate([N, E, S, W]) if side & f_side]
+
+        if 0:[print(index, bin(side), bin(f_side), not(side ^ f_side)) \
+            for index, side in enumerate(SIDES)]
+
+        self.sides = [Sprite(IMG[index], col*TILE_SIZE, row*TILE_SIZE,
+                              batch=self.batch, group=self.PARTICLE_GROUP) \
+            for index, side in enumerate(SIDES) if (side & f_side) == side]
                    
     def render_sensor(self):
         if self.sensor is not None:
@@ -335,5 +372,28 @@ class VoidCell(Cell):
     def __init__(self, position, batch):
         self.model = VoidCellModel(position)
         self.view = VoidCellView(self.model, batch)
-        
-TYPE_CELL = [Cell, CloseCell, VoidCell]
+
+class ProtectedCellModel(CellModel):
+    def __init__(self, position):
+        super().__init__(position)
+        self.owner = Energy.OTHER
+
+    def hit(self, position=None, owner=None):
+        owner = owner or self.owner
+        position = position or self.position
+        return self.position == position and (self.owner in (owner,))
+
+    def reaction(self):
+        if self.is_full():
+            self.power = 0
+            for cell in self.outgoing_links:
+                cell.charge(self.owner)
+            self.owner = Energy.OTHER
+
+class ProtectedCell(Cell):
+    def __init__(self, position, batch):
+        self.model = ProtectedCellModel(position)
+        self.view = CellView(self.model, batch)
+
+
+TYPE_CELL = [Cell, CloseCell, VoidCell, ProtectedCell]
