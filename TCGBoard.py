@@ -98,7 +98,7 @@ class Players:
                 return lst
         
     
-    def kick(self, player):
+    def kick(self, player, forced=False):
         if self.length < 2:
             return
         
@@ -111,7 +111,7 @@ class Players:
             current = current.next
             if current is head.next:  # Элемент не найден
                 return
-        if current.immunity:
+        if current.immunity and not forced:
             return
         prev.next = current.next
         if current is head:
@@ -527,10 +527,13 @@ class GameBoardStateWating(GameBoardState):
             cell.model.fill()
             cell.view.update()
             SoundEffects.play('click')
-            if cell.model.is_full():
-                self.switch_state(GameBoardStateReaction)
+            self.switch_state(GameBoardStateReaction)
+            if cell.model.is_full() and settings.chain_reaction:
+                SoundEffects.play('reaction')
             else:
-                self.master.players.next()
+                self.master.state.time = GameBoardStateReaction.DELAY
+            
+            
         else:
             self.master.warn()
         
@@ -546,11 +549,21 @@ class GameBoardStateReaction(GameBoardState):
         self.particles = ParticleManager()
         if settings.chain_reaction:
             self.particle_add()
-            SoundEffects.play('reaction')
+            
 
     def phase(self):
         return GameStateAttribute.REACTION
 
+    def check_pat(self):
+        pl = self.master.players.current()
+        if any((cell.model.hit(owner=pl) for cell in self.cells())):
+            return
+        self.master.players.kick(pl, True)
+        if self.master.players.has_winner():
+            self.game_over()
+            return True
+        self.check_pat()
+    
     def particle_add(self):
         full = filter(lambda cell : cell.model.is_full(), self.cells())
         for fc in full:
@@ -604,6 +617,8 @@ class GameBoardStateReaction(GameBoardState):
                 self.master.players.next()
                 if prev in lose:
                     self.master.players.kick(loser)
+                if self.check_pat():
+                    return
                 self.switch_state(GameBoardStateWating)
         else:
             progress = self.time / self.DELAY

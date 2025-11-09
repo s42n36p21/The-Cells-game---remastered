@@ -4,16 +4,17 @@ from Settings import Settings
 from pyglet.graphics import Batch, Group
 from pyglet.sprite import Sprite
 from pyglet.image import load
-from pyglet.shapes import Rectangle, Sector
+from pyglet.shapes import Rectangle, Sector, Box
 from pyglet import gl
 from pyglet.text import Label
+from colorsys import hsv_to_rgb
 
 class RULES: # ЗАДЕЛ НА БУДУЩЕЕ
     BLOCK_SURROUNDED = False
     
     @classmethod
     def surrounded(cls, cell):
-        if not cls.BLOCK_SURROUNDED:
+        if not cls.BLOCK_SURROUNDED or cell.owner != Energy.NEUTRAL:
             return 
         
         sur = {en.owner for en in cell.incoming_links}
@@ -37,6 +38,7 @@ def load_pixel_texture(filename):
 
 
 img_body = load_pixel_texture('src/cell.png')
+img_magic_body = load_pixel_texture('src/magic_cell.png')
 img_close_body = load_pixel_texture('src/close_cell.png')
 
 img_n = load_pixel_texture('src/N.png')
@@ -412,6 +414,126 @@ class ProtectedCell(Cell):
         self.model = ProtectedCellModel(position)
         self.view = CellView(self.model, batch)
 
+class MagicCellModel(CellModel):
+    port = dict()
+    origin: CellModel
 
+    def __init__(self, position, port=0):
+        self.origin = self.port.get(port)
+        if self.origin is None:
+            self.origin = CellModel(position)
+            self.origin.shadow = []
+            self.port[port] = self.origin            
+        super().__init__(position)
+        self.origin = self.port.get(port)
+        self.origin.shadow.append(self)
+        self.reacted = False
+    
+    @property
+    def owner(self):
+        return self.origin.owner
+    
+    @property
+    def power(self):
+        return self.origin.power
+    
+    @owner.setter
+    def owner(self, value):
+        self.origin.owner = value
+        
+    @power.setter
+    def power(self, value):
+        self.origin.power = value
+    
+    def fill(self):
+        self.reacted = False
+        self.power += self.input_power
+        self.input_power = 0
+        if not any([cell.reacted for cell in self.origin.shadow]):
+            self.owner = self.owner if self.power else Energy.NEUTRAL
+    
+    def reaction(self):
+        self.reacted = True
+        if self.is_full():
+            if all([cell.reacted for cell in self.origin.shadow]):
+                self.power = 0 
+            for cell in self.outgoing_links:
+                cell.charge(self.owner)
+            
+    
+    def lim_power(self):
+        return sum([len(out.outgoing_links) for out in self.origin.shadow])
+    
+    def delete(self):
+        super().delete()
+        self.origin.shadow.remove(self)
+            
 
-TYPE_CELL = [Cell, CloseCell, VoidCell, ProtectedCell]
+class MagicCellView(CellView):
+    port = dict()
+    
+    def __init__(self, cell_model, batch=None, port=0):
+        self.model = cell_model
+        self.batch = batch or Batch()
+        
+        row, col = cell_model.position
+        self.display = Rectangle(col*TILE_SIZE+PAD, row*TILE_SIZE+PAD, TILE_SIZE-PAD*2, TILE_SIZE-PAD*2,
+                                 color=(0,0,0,255), batch=batch, group=self.SENSOR_GROUP)
+        self.body = Sprite(img_magic_body, col*TILE_SIZE, row*TILE_SIZE, batch=batch, group=self.BODY_GROUP)
+        self.port_color = Box(col*TILE_SIZE+PAD-4, row*TILE_SIZE+PAD-4, TILE_SIZE-PAD*2+8, TILE_SIZE-PAD*2+8, thickness=10,
+                                 color=self.get_port_color(port), batch=batch, group=self.SENSOR_GROUP)
+        self.sides = []
+        self.sensor = None
+        
+        self.my_port = port
+        origin = self.port.get(port)
+        if origin is None:
+            self.port[port] = [self]
+        else:
+            self.port[port].append(self)
+
+    def destroy(self):
+        super().destroy()
+        self.port_color.delete()
+        self.port[self.my_port].remove(self)
+        
+    def update(self):
+        for cell in self.port[self.my_port]:
+            CellView.update(cell)
+    
+    @staticmethod
+    def get_port_color(port):
+        r, g, b = hsv_to_rgb(port/255, .9, 1)
+        return int(r * 255), int(g * 255), int(b * 255)
+
+class MagicCell(Cell):   
+    def __init__(self, position, batch, port=0):
+        self.model = MagicCellModel(position, port)
+        self.view = MagicCellView(self.model, batch, port)
+
+class MagicCellPortA(MagicCell):
+    def __init__(self, position, batch, port=0):
+        super().__init__(position, batch, port)
+        
+class MagicCellPortB(MagicCell):
+    def __init__(self, position, batch, port=85):
+        super().__init__(position, batch, port)
+
+class MagicCellPortC(MagicCell):
+    def __init__(self, position, batch, port=170):
+        super().__init__(position, batch, port)
+
+class MagicCellPortD(MagicCell):
+    def __init__(self, position, batch, port=42):
+        super().__init__(position, batch, port)
+        
+class MagicCellPortE(MagicCell):
+    def __init__(self, position, batch, port=128):
+        super().__init__(position, batch, port)
+
+class MagicCellPortF(MagicCell):
+    def __init__(self, position, batch, port=213):
+        super().__init__(position, batch, port)
+
+TYPE_CELL = [Cell, CloseCell, VoidCell, ProtectedCell,
+             MagicCellPortA, MagicCellPortB, MagicCellPortC, MagicCellPortD, MagicCellPortE,MagicCellPortF]

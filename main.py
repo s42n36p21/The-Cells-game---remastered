@@ -158,7 +158,7 @@ class HotKeys:
         elif key == pyglet.window.key.Z:
             if self.master.game.phase() == GSA.WATING:
                 c = self.master.game.players.current()   
-                self.master.game.players.kick(c)
+                self.master.game.players.kick(c, True)
 
         elif key == pyglet.window.key.Q:
             
@@ -495,7 +495,6 @@ class Menu(Scene):
                 pyglet.app.exit()
 
     def update(self, dt):
-        print("Запущена пидорская сцена")
         for ui in self.ui:
             ui.update(dt)
 
