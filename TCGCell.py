@@ -8,6 +8,19 @@ from pyglet.shapes import Rectangle, Sector
 from pyglet import gl
 from pyglet.text import Label
 
+class RULES: # ЗАДЕЛ НА БУДУЩЕЕ
+    BLOCK_SURROUNDED = False
+    
+    @classmethod
+    def surrounded(cls, cell):
+        if not cls.BLOCK_SURROUNDED:
+            return 
+        
+        sur = {en.owner for en in cell.incoming_links}
+        
+        if (len(sur) == 1):
+            return sur.pop()
+
 settings = Settings()
 settings.load()
 
@@ -94,6 +107,12 @@ P_ENERGY = [
     Energy.P8
 ]
 
+S_ENERGY = [
+    Energy.NEUTRAL,
+    Energy.OTHER 
+]
+
+
 def get_color(energy):
     return {
         Energy.NEUTRAL: (250,250,250),
@@ -145,6 +164,11 @@ class CellModel:
     def hit(self, position=None, owner=None):
         owner = owner or self.owner
         position = position or self.position
+        
+        if (pl := RULES.surrounded(self)):
+            if (pl != Energy.NEUTRAL) and pl != owner:
+                return
+
         return self.position == position and (self.owner in (owner, Energy.NEUTRAL))
     
     def link(self, other: 'CellModel'):
@@ -158,13 +182,14 @@ class CellModel:
     def fill(self):
         self.power += self.input_power
         self.input_power = 0
+        self.owner = self.owner if self.power else Energy.NEUTRAL
     
     def reaction(self):
         if self.is_full():
             self.power = 0
             for cell in self.outgoing_links:
                 cell.charge(self.owner)
-            self.owner = Energy.NEUTRAL
+                #self.owner = Energy.NEUTRAL
             
     def copy(self):
         cell = CellModel(self.position)
@@ -310,13 +335,6 @@ class Cell:
 class CloseCellModel(CellModel):
     def hit(self, position=None, owner=None):
         return None
-        
-    def reaction(self):
-        if self.is_full():
-            self.power = 0
-            for cell in self.outgoing_links:
-                cell.charge(self.owner)
-            self.owner = Energy.NEUTRAL
             
     def is_considered(self):
         return 
@@ -383,17 +401,17 @@ class ProtectedCellModel(CellModel):
         position = position or self.position
         return self.position == position and (self.owner in (owner,))
 
-    def reaction(self):
-        if self.is_full():
-            self.power = 0
-            for cell in self.outgoing_links:
-                cell.charge(self.owner)
+    def fill(self):
+        super().fill()
+        if not self.power:
             self.owner = Energy.OTHER
+            
 
 class ProtectedCell(Cell):
     def __init__(self, position, batch):
         self.model = ProtectedCellModel(position)
         self.view = CellView(self.model, batch)
+
 
 
 TYPE_CELL = [Cell, CloseCell, VoidCell, ProtectedCell]
