@@ -7,6 +7,7 @@ from pyglet.math import Vec2
 from pyglet.text import Label
 from pyglet.graphics import Batch, shader
 from collections import deque
+import time
 
 def load_pixel_art_texture(filename):
     """Загружает текстуру с отключенной интерполяцией для пиксельной графики"""
@@ -147,6 +148,7 @@ class Actor:
         self.position = position
         self.name = name
         self.color = color
+        self.last_state = {}  # Для отслеживания изменений
 
     @property
     def name(self):
@@ -182,6 +184,73 @@ class Actor:
 
     def update(self, dt):
         pass
+
+    def to_dict(self) -> dict:
+        """
+        Загружает информацию об актере в словарь
+        """
+        return {
+            "id": self.ID,
+            "pos_x": self.position.x,
+            "pos_y": self.position.y,
+            "heading": self._sprite.heading,
+            "state": self._sprite.state,
+            "name": self.name,
+            "color": self.color,
+            "speed": getattr(self, '_speed', 100),  # Для MoveableActor
+            "timestamp": time.time()
+        }
+
+    def create_delta_dict(self) -> dict:
+        """
+        Загружает только изменения состояний актера в словарь. Нужно для оптимизации
+        """
+        current = self.to_dict()
+        delta = {k: v for k, v in current.items() if self.last_state.get(k) != v}
+        self.last_state = current.copy()
+        return delta
+
+    def from_dict(self, data: dict) -> "Actor":
+        """
+        Загружает актера из словаря
+        """
+        self.position = Vec2(data["pos_x"], data["pos_y"])
+        self._sprite.use(heading=data["heading"], state=data["state"])
+        self.name = data["name"]
+        self.color = data["color"]
+        if hasattr(self, '_speed'):
+            self._speed = data.get("speed", 100)
+        return self
+
+    def apply_delta(self, delta: dict):
+        """
+        Применяет дельту изменений
+        """
+        for k, v in delta.items():
+            if k == "pos_x":
+                self.position = Vec2(v, self.position.y)
+            elif k == "pos_y":
+                self.position = Vec2(self.position.x, v)
+            elif k == "heading":
+                self._sprite.use(heading=v)
+            elif k == "state":
+                self._sprite.use(state=v)
+            elif k == "name":
+                self.name = v
+            elif k == "color":
+                self.color = v
+            elif k == "speed" and hasattr(self, '_speed'):
+                self._speed = v
+
+    def interpolate(self, target_pos: Vec2, target_heading: int, target_state: int, dt: float, lerp_factor=0.1):
+        """
+        Плавная интерполяция к целевому состоянию
+        """
+        self.position = self.position.lerp(target_pos, lerp_factor)
+        if self._sprite.heading != target_heading:
+            self._sprite.use(heading=target_heading)
+        if self._sprite.state != target_state:
+            self._sprite.use(state=target_state)
 
     def draw(self):
         self._batch.draw()
@@ -275,6 +344,16 @@ class Player(MoveableActor):
 
         self.go = set()
         self.camera = None
+        self.last_input_time = 0
+        self.predicted_position = self.position  # Для предсказания (интерполяции)
+
+    def send_input(self):
+        """Отправляет ввод к хосту. Будет доделано позже"""
+        pass
+
+    def receive_updates(self):
+        """Получает обновления от хоста. Будет доделано похзже"""
+        pass
 
     def on_key_press(self, symbol, modifiers):
         if symbol in WASD_ULDR:
@@ -297,6 +376,9 @@ class Player(MoveableActor):
         self.go.clear()
 
     def update(self, dt):
+        self.receive_updates()  # Получить обновления
+        self.send_input()  # Отправить ввод
+
         if self.go:
             self.timer += dt
             velocity = Vec2(0, 1) * (N in self.go) + \
@@ -304,9 +386,10 @@ class Player(MoveableActor):
                     Vec2(0, -1) * (S in self.go) + \
                     Vec2(-1, 0) * (W in self.go)
             velocity = velocity.normalize() * self.speed * dt
+            self.predicted_position += velocity
             self.look(*velocity)
             self.step()
-            self.position += velocity
+            self.position = self.predicted_position
         else:
             if self.target is None:
                 if self._sprite.state:
@@ -317,3 +400,11 @@ class Player(MoveableActor):
 
         if self.camera:
             self.camera.focus(*self.position)
+
+class NetworkPlayer(MoveableActor):
+    """Класс для удалённых игроков, с интерполяцией"""
+    def __init__(self, player_id, position=(0, 0), name="Entity", color=(255, 255, 255, 127), speed=100, img=None, scan_type='news', anim_length=4, batch=None):
+        super().__init__(position, name, color, speed, img, scan_type, anim_length, batch)
+        self.player_id = player_id
+        self.target_pos = self.position
+        self.target
