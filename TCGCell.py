@@ -9,14 +9,25 @@ from pyglet import gl
 from pyglet.text import Label
 from colorsys import hsv_to_rgb
 from collections import deque
+#from TCGBoard import GameBoard
 
 class RULES: # ЗАДЕЛ НА БУДУЩЕЕ
-    BLOCK_SURROUNDED = True
-    BLOCK_INSULAR = False
+    _context = None
+    
+    BLOCK_SURROUNDED = 0
+    BLOCK_INSULAR = 0
+    HIDE_MOD = 0
+    
+    @classmethod
+    def context(cls, ctx=None):
+        cls._context = ctx
     
     @classmethod
     def reachable(cls, cell, owner):
         if not cls.BLOCK_INSULAR:
+            return True
+        
+        if cls._context.players.ptr.immunity:
             return True
         
         if cell.owner == owner:
@@ -323,13 +334,25 @@ class CellView:
     def update(self):
         if self.sensor is None:
             return
-        if settings.sensor_type:
-            lim_power = self.model.lim_power() or float('inf')
-            progress = self.model.power / lim_power
-            self.sensor.angle = -360*progress
+        try:
+            owner = RULES._context.players.ptr.value
+        except:
+            owner = Energy.NEUTRAL
+        if RULES.HIDE_MOD and (self.model.owner not in [owner, Energy.NEUTRAL]):
+            #if RULES._context is not None:
+            if settings.sensor_type:
+                self.sensor.angle = -360
+            else:
+                self.sensor.text = '?'
+            self.sensor.color = get_color(Energy.OTHER)
         else:
-            self.sensor.text = str(self.model.power)
-        self.sensor.color = get_color(self.model.owner)
+            if settings.sensor_type:
+                lim_power = self.model.lim_power() or float('inf')
+                progress = self.model.power / lim_power
+                self.sensor.angle = -360*progress
+            else:
+                self.sensor.text = str(self.model.power)
+            self.sensor.color = get_color(self.model.owner)
         
     def destroy(self):
         self.body.delete()

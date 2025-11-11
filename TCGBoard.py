@@ -59,7 +59,6 @@ class Players:
         if len(self.players) < 2:
             raise ValueError("Игроков должно быть минимум 2")
         
-        RULES.BLOCK_INSULAR = False
         queue = self.players.copy()
         if self.SHUFFLE:
             shuffle(queue)
@@ -80,8 +79,6 @@ class Players:
         
         self.ptr.immunity = 0
         self.ptr = self.ptr.next
-        if not self.ptr.immunity:
-            RULES.BLOCK_INSULAR = True
 
     def current(self):
         return self.ptr.value if self.ptr is not None else Energy.NEUTRAL
@@ -623,6 +620,9 @@ class GameBoardStateReaction(GameBoardState):
                     self.master.players.kick(loser)
                 if self.check_pat():
                     return
+                if RULES.HIDE_MOD:
+                    for cell in self.cells():
+                        cell.view.update()
                 self.switch_state(GameBoardStateWating)
         else:
             progress = self.time / self.DELAY
@@ -661,6 +661,7 @@ class GameBoardStateReady(GameBoardState):
     
 class GameBoard:
     def __init__(self, scene):
+        RULES.context(self)
         self.scene = scene
         self.cells = dict()
         self.batch = pyglet.graphics.Batch()
