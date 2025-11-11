@@ -8,16 +8,39 @@ from pyglet.shapes import Rectangle, Sector, Box
 from pyglet import gl
 from pyglet.text import Label
 from colorsys import hsv_to_rgb
+from collections import deque
 
 class RULES: # ЗАДЕЛ НА БУДУЩЕЕ
-    BLOCK_SURROUNDED = False
+    BLOCK_SURROUNDED = True
+    BLOCK_INSULAR = False
     
+    @classmethod
+    def reachable(cls, cell, owner):
+        if not cls.BLOCK_INSULAR:
+            return True
+        
+        if cell.owner == owner:
+            return True
+        
+        visited = set()
+        queue = deque([cell])
+        visited.add(cell)
+        
+        while queue:
+            current = queue.popleft()
+            for next in current.incoming_links:
+                if (next not in visited):
+                    if next.owner == owner:
+                        return True
+                    if next.owner == Energy.NEUTRAL:
+                        visited.add(next)
+                        queue.append(next)
     @classmethod
     def surrounded(cls, cell):
         if not cls.BLOCK_SURROUNDED or cell.owner != Energy.NEUTRAL:
             return 
         
-        sur = {en.owner for en in cell.incoming_links}
+        sur = {en.owner for en in cell.outgoing_links}
         
         if (len(sur) == 1):
             return sur.pop()
@@ -170,6 +193,9 @@ class CellModel:
         if (pl := RULES.surrounded(self)):
             if (pl != Energy.NEUTRAL) and pl != owner:
                 return
+        
+        if not RULES.reachable(self, owner):
+            return
 
         return self.position == position and (self.owner in (owner, Energy.NEUTRAL))
     

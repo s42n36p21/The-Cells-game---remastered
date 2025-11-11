@@ -1,4 +1,4 @@
-from TCGCell import Cell, get_color, Energy, TILE_SIZE, get_side, TYPE_CELL
+from TCGCell import Cell, get_color, Energy, TILE_SIZE, get_side, TYPE_CELL, RULES
 import pyglet
 from Settings import Settings
 from random import shuffle
@@ -59,6 +59,7 @@ class Players:
         if len(self.players) < 2:
             raise ValueError("Игроков должно быть минимум 2")
         
+        RULES.BLOCK_INSULAR = False
         queue = self.players.copy()
         if self.SHUFFLE:
             shuffle(queue)
@@ -76,8 +77,11 @@ class Players:
         
 
     def next(self):
+        
         self.ptr.immunity = 0
         self.ptr = self.ptr.next
+        if not self.ptr.immunity:
+            RULES.BLOCK_INSULAR = True
 
     def current(self):
         return self.ptr.value if self.ptr is not None else Energy.NEUTRAL
