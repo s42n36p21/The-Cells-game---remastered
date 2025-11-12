@@ -327,7 +327,8 @@ class NetworkPlayer(Player):
         super().__init__(position, name, color, speed, img, scan_type, anim_length, batch)
         self.player_id = player_id
         self.target_pos = self.position
-        self.target
+        self.target_heading = self._sprite.heading
+        self.target_state = self._sprite.state
         self.last_state = {}  # Для отслеживания изменений
 
     def send_input(self):
@@ -341,7 +342,11 @@ class NetworkPlayer(Player):
     def update(self, dt):
         self.send_input()
         self.receive_updates()
-        super().update()
+        
+        lerp_factor = min(1.0, dt*10)
+        self.interpolate(self.target_pos, self.target_heading, self.target_state, dt, lerp_factor)
+
+        self.update_lable()
         
 
 
@@ -398,8 +403,8 @@ class NetworkPlayer(Player):
                 self.name = v
             elif k == "color":
                 self.color = v
-            elif k == "speed" and hasattr(self, '_speed'):
-                self._speed = v
+            elif k == "speed":
+                self.speed = v
 
     def interpolate(self, target_pos: Vec2, target_heading: int, target_state: int, dt: float, lerp_factor=0.1):
         """
