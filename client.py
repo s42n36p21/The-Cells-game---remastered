@@ -22,11 +22,13 @@ class NetClient:
         self._is_connecting=False
         self.input_queue = deque()
         self.update_queue = deque()
+        self.buffer = b''
         logging.debug("NetClient создан")
         if self.connect()==0:
             self._is_connected=True
             self._is_connecting=False
             logging.debug("Запуск цикла...")
+            time.sleep(0.1)
             self.thread = threading.Thread(target=self.network_loop, daemon=True)
             self.thread.start()
 
@@ -80,18 +82,37 @@ class NetClient:
             while self.running:
                 read_sockets = [self.socket]
                 write_sockets = [self.socket] if self.input_queue else []
-                readable, writable, exceptional = select.select(read_sockets, write_sockets, read_sockets, 0.1)
+                readable, writable, exceptional = select.select(read_sockets, write_sockets, read_sockets, 0.01)
 
                 if self.socket in writable:
                     while self.input_queue:
                         data = self.input_queue.popleft()
-                        self.socket.sendall(json.dumps(data).encode("utf-8"))
+                        self.socket.sendall(json.dumps(data).encode("utf-8")+b"\n")
                 if self.socket in readable:
-                    data = self.socket.recv(4096).decode("utf-8")
-                    logging.info(data)
-                    if data:
-                        update=json.loads(data)
-                        self.update_queue.append(update)
+                    raw_data = self.socket.recv(4096)
+                    update = json.loads(raw_data)
+                    self.update_queue.append(update)
+                    # может быть полезно позже
+                    """if not raw_data:
+                        logging.info("Получены пустые данные: соединение закрыто")
+                        break
+                    
+                    self.buffer += raw_data
+                    logging.debug(f"Получено сырых байтов: {len(raw_data)}, буфер: {len(self.buffer)} байт")
+                    
+                    # Парсим буфер на строки (до \n)
+                    while b'\n' in self.buffer:
+                        line_bytes, self.buffer = self.buffer.split(b'\n', 1)
+                        if line_bytes:
+                            try:
+                                message_str = line_bytes.decode("utf-8")
+                                update = json.loads(message_str)
+                                self.update_queue.append(update)
+                            except (UnicodeDecodeError, json.JSONDecodeError) as e:
+                                logging.error(f"Ошибка парсинга строки '{line_bytes.decode('utf-8', errors='ignore')}': {e}")
+                        else:
+                            logging.debug("Получена пустая строка")"""
+
         except OSError as e:
             logging.error(e)
             self.running=False
@@ -144,20 +165,22 @@ class GameClient:
         if not self.client.is_connected:
             raise ConnectionError
         self.client.send_input({"code":self.CODE.HELLO.value, "name":player_name, "password":password})
-        time.sleep(1)
-        while True:
-            self.client.send_input({"code":self.CODE.HELLO.value, "name":player_name, "password":password})
-            time.sleep(0.1)
-        #update:dict = self.client.get_updates()
-        #if not update:
-            #logging.error("Ответ от сервера не был получен")
-            #raise ConnectionError
-        #code = update.get("code")
-        #if code == self.CODE.WRONG_PASSWORD:
-            #raise PermissionError("Неправильный пароль")
-        #if code == self.CODE.WELCOME:
-           # self.scheme = update.get("scheme")
-           # self.players = update.get("players")    
+        time.sleep(0.05)
+        update:list = self.client.get_updates()
+        if not update:
+            logging.error("Нет ответа от серевера")
+            raise ConnectionError
+        update = update.pop(0)
+        code = update.get("code")
+        if code == self.CODE.WRONG_PASSWORD.value:
+            raise PermissionError("Неправильный пароль")
+        if code == self.CODE.WELCOME.value:
+            self.scheme = update.get("scheme")
+            self.players = update.get("players")
+            logging.info("ЗАШЛИ, ЗАЕБИСЬ!!!")
+
+        def handle_forever(self):
+            pass
 
 # debug
 if __name__ == "__main__":
