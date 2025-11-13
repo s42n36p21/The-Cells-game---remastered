@@ -9,10 +9,12 @@ import threading
 import json
 from collections import deque
 import logging
+from pyglet.event import EventDispatcher
+from server import NetServer
 
 logging.basicConfig(level=logging.DEBUG)
 
-class NetClient:
+class NetClient(EventDispatcher):
     def __init__(self, server_host, server_port):
         self.server_host=server_host
         self.server_port=server_port
@@ -57,17 +59,20 @@ class NetClient:
                 logging.info("Клиент подключён!")
                 self.socket.setblocking(False)
                 self.running=True
+                self.dispatch_event("on_connect")
                 return 0
             except ConnectionRefusedError:
                 logging.error(f"Подключение к {self.server_host}:{self.server_port} было отвергнуто!")
                 self._is_connecting=False
                 self.socket.close()
+                self.dispatch_event("on_disconnect")
                 return 1
             except socket.timeout:
                 if attempt==4:
                     logging.error(f"Невозможно подключиться к серверу ({self.server_host}:{self.server_port})! Истекло время ожидания")
                     self._is_connecting=False
                     self.socket.close()
+                    self.dispatch_event("on_disconnect")
                     return 2
                 logging.warning(f"Истекло время ожидания для {self.server_host}:{self.server_port}! Переподключение... ({attempt}/3)")
                 attempt+=1
@@ -90,13 +95,15 @@ class NetClient:
                         self.socket.sendall(json.dumps(data).encode("utf-8")+b"\n")
                 if self.socket in readable:
                     raw_data = self.socket.recv(4096)
+                    if not raw_data:
+                        logging.info("Получены пустые данные: соединение закрыто")
+                        self.dispatch_event("on_disconnect")
+                        break
                     update = json.loads(raw_data)
+                    self.dispatch_event("on_receive", update)
                     self.update_queue.append(update)
                     # может быть полезно позже
-                    """if not raw_data:
-                        logging.info("Получены пустые данные: соединение закрыто")
-                        break
-                    
+                    """
                     self.buffer += raw_data
                     logging.debug(f"Получено сырых байтов: {len(raw_data)}, буфер: {len(self.buffer)} байт")
                     
@@ -114,12 +121,14 @@ class NetClient:
                             logging.debug("Получена пустая строка")"""
         except ConnectionResetError:
             logging.error(f"Соединение с сервером {self.server_host}:{self.server_port} было разорвано!")
+            self.dispatch_event("on_disconnect")
             self._is_connected = False
             self.running=False
             self.socket.close()
 
         except OSError as e:
             logging.error(e)
+            self.dispatch_event("on_disconnect")
             self._is_connected = False
             self.running=False
             self.socket.close()
@@ -130,7 +139,7 @@ class NetClient:
         self.update_queue.clear()
         return updates
     
-    def send_input(self, input):
+    def send(self, input):
         """Отправляет сообщение в очередь на отправку"""
         self.input_queue.append(input)
 
@@ -140,54 +149,40 @@ class NetClient:
         self._is_connected = False
         self.running=False
         self.socket.close()
+        self.dispatch_event("on_disconnect")
+
+    def on_connect(self):
+        pass
+
+    def on_disconnect(self):
+        pass
+
+    def on_receive(self, update):
+        pass
+
+NetClient.register_event_type("on_connect")
+NetClient.register_event_type("on_disconnect")
+NetClient.register_event_type("on_receive")
 
 class GameClient:
-    class CODE(Enum):
-        HELLO = 10
-        WELCOME = 20
-        NEW_PLAYER = 30  
-        
-        MOVE = 100
-        HIT = 110
-        PASS = 120
-        QUIT = 130
-        READY = 140
-        
-        PLAYER_MOVE = 200
-        PLAYER_HIT = 210
-        PLAYER_PASS = 220
-        PLAYER_QUIT = 230
-        
-        WRONG_PASSWORD = 300   
-        
-        START = 400
-
     def __init__(self, server_host, server_port, password, player_name):
         self.client = NetClient(server_host, server_port)
-        while self.client.is_connecting:
-            time.sleep(0.1)
-        if not self.client.running:
-            logging.error("Разорвано соединение с сервером")
-            raise ConnectionError
-        if not self.client.is_connected:
-            raise ConnectionError
-        self.client.send_input({"code":self.CODE.HELLO.value, "name":player_name, "password":password})
-        time.sleep(0.05)
-        update:list = self.client.get_updates()
-        if not update:
-            logging.error("Нет ответа от серевера")
-            raise ConnectionError
-        update = update.pop(0)
-        code = update.get("code")
-        if code == self.CODE.WRONG_PASSWORD.value:
-            raise PermissionError("Неправильный пароль")
-        if code == self.CODE.WELCOME.value:
-            self.scheme = update.get("scheme")
-            self.players = update.get("players")
-            logging.info("ЗАШЛИ, ЗАЕБИСЬ!!!")
+        self.client.push_handlers(self)
+        self.player_name = player_name
+        self.password = password
 
-        def handle_forever(self):
-            pass
+    def on_connect(self):
+        self.client.send({"code":NetServer.CODE.HELLO.value, "name":self.player_name, "password":self.password})
+
+    def on_receive(self, update):
+        code = update.get("code")
+        match code:
+            case NetServer.CODE.WRONG_PASSWORD:
+                raise PermissionError("Неправильный пароль")
+            case NetServer.CODE.WELCOME:
+                self.scheme = update.get("scheme")
+                self.players = update.get("players")
+                logging.info("Вошли!")
 
 # debug
 if __name__ == "__main__":
