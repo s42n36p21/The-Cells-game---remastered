@@ -1,6 +1,11 @@
 import pyglet
 from pyglet.experimental import net
 import weakref
+import asyncio
+from asyncio import StreamReader, StreamWriter
+import threading
+from collections import deque
+import logging
 import json
 from typing import Dict, Any
 import time
@@ -11,6 +16,64 @@ from random import shuffle
 
 with open('3x3.json', 'r', encoding='utf-8') as file:
     SCHEME = json.load(file)
+
+class NetServer:
+    def __init__(self, server_port, password):
+        self.server_port=server_port
+        self.running=True
+        self.server = None
+        self.connections = []
+        self.password = password
+    
+    async def start_forever(self):
+        self.server = await asyncio.start_server(self.network_loop, "0.0.0.0", self.server_port)
+        async with self.server:
+            print(f"Сервер открыт и слушает на порту {self.server_port}")
+            self.running=True
+            await self.server.serve_forever()
+
+    async def network_loop(self, reader:StreamReader, writer:StreamWriter):
+        """
+        Основной цикл сети в асинхронном потоке
+        """
+        client_address = writer.get_extra_info('peername')
+        self.connections.append(client_address)
+        print(f"Подключен новый клиент: {client_address}")
+        try:
+            while self.running:
+                data = await reader.read()
+                if not data:
+                    print("Клиент отключился")
+                    break
+                message = data.decode('utf-8')
+                print(message)
+        except Exception as e:
+            self.running=False
+            #logging.error(e)
+        writer.close()
+        await writer.wait_closed()
+
+    def get_updates(self):
+        """Возвращает все накопленные сообщения"""
+        updates = list(self.update_queue)
+        self.update_queue.clear()
+        return updates
+    
+    def send_input(self, input):
+        """Отправляет сообщение в очередь на отправку"""
+        self.input_queue.append(input)
+
+    def close(self):
+        """Закрытие соединения"""
+        logging.debug(f"Закрытие соединения с {self.server_host}:{self.server_port}")
+        self.running=False
+        self.socket.close()
+
+    def handle_message(self, message):
+        pass
+
+    def broadcast(self, message, exclude):
+        pass
 
 class Protocol:
     class CODE(Enum):
@@ -168,14 +231,6 @@ class GameServer:
                     # Если отправка не удалась, соединение, вероятно, разорвано
                     pass
 
-def main():
-    server = GameServer(host='localhost', port=12345)
-    print("Сервер запущен. Ожидание подключений...")
-    
-    try:
-        pyglet.app.run()
-    except KeyboardInterrupt:
-        print("Сервер остановлен")
-
 if __name__ == "__main__":
-    main()
+    server = NetServer(12345, 123456)
+    asyncio.run(server.start_forever())
