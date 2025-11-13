@@ -112,9 +112,15 @@ class NetClient:
                                 logging.error(f"Ошибка парсинга строки '{line_bytes.decode('utf-8', errors='ignore')}': {e}")
                         else:
                             logging.debug("Получена пустая строка")"""
+        except ConnectionResetError:
+            logging.error(f"Соединение с сервером {self.server_host}:{self.server_port} было разорвано!")
+            self._is_connected = False
+            self.running=False
+            self.socket.close()
 
         except OSError as e:
             logging.error(e)
+            self._is_connected = False
             self.running=False
             self.socket.close()
 
@@ -131,6 +137,7 @@ class NetClient:
     def close(self):
         """Закрытие соединения"""
         logging.debug(f"Закрытие соединения с {self.server_host}:{self.server_port}")
+        self._is_connected = False
         self.running=False
         self.socket.close()
 
