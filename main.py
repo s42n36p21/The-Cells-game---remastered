@@ -362,7 +362,7 @@ class TCGNetWorkGame(Scene):
 
     def on_player_disconnect(self, player_name):
         """Если отключился КАКОЙ-ТО игрок"""
-        pass
+        self.remote_players.pop(player_name)
 
     """
     def on_receive(self, connection, message):

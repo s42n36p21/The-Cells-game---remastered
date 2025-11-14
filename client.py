@@ -97,7 +97,7 @@ class NetClient(EventDispatcher):
                 if self.socket in readable:
                     raw_data = self.socket.recv(4096).decode('utf-8').split("\n")
                     for data in raw_data[:len(raw_data)-1]:
-                        logging.info(data)
+                        #logging.info(data)
                         if not data:
                             logging.info("Получены пустые данные: соединение закрыто")
                             self.dispatch_event("on_disconnect")
@@ -191,12 +191,12 @@ class GameClient(NetClient):
             case Protocol.CODE.NEW_PLAYER:
                 player_name = update.get("name")
                 self.dispatch_event("on_player_joined", player_name)
-            case Protocol.CODE.MOVE:
+            case Protocol.CODE.PLAYER_MOVE:
                 player_name = update.get("name")
                 pos = update.get("move")
                 moved_time = update.get("time")
                 self.dispatch_event("on_player_moved", player_name, pos, moved_time)
-            case Protocol.CODE.HIT:
+            case Protocol.CODE.PLAYER_HIT:
                 player_name = update.get("name")
                 hit = update.get("hit")
                 self.dispatch_event("on_player_hit", player_name, hit)
