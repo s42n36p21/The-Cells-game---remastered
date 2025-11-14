@@ -148,7 +148,7 @@ class GameServer:
         self.protocol.handle_message(connection, data)
     
     def send(sekf, message, connection):
-        message_bytes = json.dumps(message).encode()
+        message_bytes = json.dumps(message).encode() + b'\n\n'
         try:
             connection.send(message_bytes)
         except:
@@ -158,7 +158,7 @@ class GameServer:
     def broadcast(self, message, exclude=None):
        # print("""Отправка сообщения всем подключенным клиентам""")
         
-        message_bytes = json.dumps(message).encode()
+        message_bytes = json.dumps(message).encode() + b'\n\n'
         for connection in self.connections:
             if connection is not exclude:
                 try:

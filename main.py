@@ -282,6 +282,7 @@ class TCGGame(Scene):
 class TCGNetWorkGame(Scene):
     def setup(self):
         self.tps_count = 0
+        self.reading_message = ''
         
         self.batch = pyglet.graphics.Batch()
         self.camera = Camera(self._master)
@@ -322,15 +323,24 @@ class TCGNetWorkGame(Scene):
         
         self.player.attach_camera(self.camera)
         
+    
     def on_receive(self, connection, message):
         """Event for received messages."""
         
-        try:
-            message = json.loads(message.decode())
-        except (json.JSONDecodeError, UnicodeDecodeError) as e:
-            print(f"Ошибка декодирования сообщения: {e}")
-            return
-        
+        raw: str = self.reading_message + message.decode('utf-8')
+        print(raw)
+        self.reading_message = ''
+        messages = raw.split('\n\n')
+        end = messages.pop()
+        if end != '':
+            self.reading_message += end
+        for msg in messages:
+            try:
+                self.handle_message(json.loads(msg))
+            except (json.JSONDecodeError, UnicodeDecodeError) as e:
+                print(f"Ошибка декодирования сообщения: {e}")
+
+    def handle_message(self, message):
         code = Protocol.CODE(message.get('code'))
         #print(message)
         match code:
