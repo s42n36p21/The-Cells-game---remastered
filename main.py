@@ -14,8 +14,10 @@ from TCGBoard import GameStateAttribute as GSA, GameBoard
 from TCGtools import Cursor, HoverInspector
 from TCGBoard import Modes
 from Scene import Scene
-from server import net, Protocol
 import json
+from pyglet.math import Vec2
+from client import GameClient
+from server import Protocol
 from widgets import Panel, PanelButton, PanelTextButton
 from time import time
 from TCGBoard import GameBoardStateEdit, GameBoardStateWating, GameBoardStateReaction
@@ -281,6 +283,7 @@ class TCGGame(Scene):
 
 class TCGNetWorkGame(Scene):
     def setup(self):
+        self.old_pos = Vec2(0, 0)
         self.tps_count = 0
         
         self.batch = pyglet.graphics.Batch()
@@ -313,73 +316,57 @@ class TCGNetWorkGame(Scene):
         self.hits = []
         self.flag = False
         
-        self.client = net.Client(HOST, PORT)
+        self.client = GameClient(HOST, PORT, NET.get('password'), NAME)
         self.client.push_handlers(self)
-        message = {"code": Protocol.CODE.HELLO.value, "name": NAME, "password":NET.get('password')}
-        message_bytes = json.dumps(message).encode()
         self.camera.update_projection()
-        self.client.send(message_bytes)
         
         self.player.attach_camera(self.camera)
         
-    def on_receive(self, connection, message):
-        """Event for received messages."""
-        
+    def on_join(self, scheme, players):
+        self.game.build(scheme)
+        self.game.restart(Modes.EXTENDED)
+        rp = players
+        print(rp)
+        def f():
+            for p in rp.values():
+                name = p.get('name')
+                position = p.get('position')
+                print(name, position)
+                self.remote_players.update({name: Actor(name=name, position=position, batch=self.batch, img='src/actor.png')})
+        self.tasks.append(f)
+    
+    def on_player_joined(self, player_name):
+        self.tasks.append(lambda: self.remote_players.update({player_name: Actor(name=player_name, batch=self.batch, img='src/actor.png')}))
+    
+    def on_player_moved(self, player_name, pos, moved_time):
         try:
-            message = json.loads(message.decode())
-        except (json.JSONDecodeError, UnicodeDecodeError) as e:
-            print(f"Ошибка декодирования сообщения: {e}")
-            return
-        
-        code = Protocol.CODE(message.get('code'))
-        #print(message)
-        match code:
-            case Protocol.CODE.WELCOME:
-                self.game.build(message.get('scheme'))
-                self.game.restart(Modes.EXTENDED)
-                rp = message.get('players')
-                print(rp)
-                def f():
-                    for p in rp.values():
-                        name = p.get('name')
-                        position = p.get('position')
-                        print(name, position)
-                        self.remote_players.update({name: Actor(name=name, position=position, batch=self.batch, img='src/actor.png')})
-                self.tasks.append(f)
+            self.remote_players[player_name].goto(*pos, time() - moved_time) 
+        except Exception as e:
+            print(e)
 
-            case Protocol.CODE.NEW_PLAYER:
-                name = message.get('name')
-                self.tasks.append(lambda: self.remote_players.update({name: Actor(name=name, batch=self.batch, img='src/actor.png')}))
+    def on_game_start(self, players):
+        pl = [p for p in players]
+        for n, p in pl:
+            if n == self.player.name:
+                self.player.color = get_color(Energy(p))
+                self.player.energy = Energy(p)
+                self.cursor.color = Energy(p)
+                continue
+            self.remote_players[n].color = get_color(Energy(p))
+        self.game.join(*[Energy(p) for n, p in pl]) 
+        self.game.restart(Modes.EXTENDED)
 
-            case Protocol.CODE.PLAYER_MOVE:
-                name = message.get('name')
-                pos = message.get('move')
-                time_ = message.get('time')
-                try:
-                    self.remote_players[name].goto(*pos, time() - time_) 
-                except Exception as e:
-                    print(e)
-                    
-            case Protocol.CODE.START:
-                print(message)
-                pl = [p for p in message.get('players')]
-                for n, p in pl:
-                    if n == self.player.name:
-                        self.player.color = get_color(Energy(p))
-                        self.player.energy = Energy(p)
-                        self.cursor.color = Energy(p)
-                        continue
-                    self.remote_players[n].color = get_color(Energy(p))
-                self.game.join(*[Energy(p) for n, p in pl]) 
-                self.game.restart(Modes.EXTENDED)
-               
-                
-            case Protocol.CODE.PLAYER_HIT:
-                print('этот пидор походил')
-                self.hits.append(message.get('hit'))
-            
-    def on_disconnect(self, connection):
-        """Event for disconnection. """
+    def on_player_hit(self, player_name, hit):
+        print('этот пидор походил')
+        self.hits.append(hit)
+
+    def on_player_disconnect(self, player_name):
+        """Если отключился КАКОЙ-ТО игрок"""
+        self.remote_players.pop(player_name)
+
+    def on_disconnect(self):
+        """Если МЫ САМИ отключились"""
+        # можно, например, перемещать в меню, если отключились
 
     def debug(self):
         x ,y = self.camera.screen_to_world(self.mouse.data.get('x',0), self.mouse.data.get('y',0))
@@ -398,9 +385,8 @@ class TCGNetWorkGame(Scene):
 
     def ready(self):
         message = {"code": Protocol.CODE.READY.value, "name": self.player.name}
-        message_bytes = json.dumps(message).encode()
         
-        self.client.send(message_bytes)
+        self.client.send(message)
 
     def on_mouse_press(self, x, y, button, modifiers):
 
@@ -423,21 +409,21 @@ class TCGNetWorkGame(Scene):
         if cell:
             if cell.model.hit(owner=self.player.energy):
                 message = {"code": Protocol.CODE.HIT.value, "name": self.player.name, 'hit': (row, col)}
-                message_bytes = json.dumps(message).encode()
                 print('ПОХОДИЛ СУКА')
-                self.client.send(message_bytes)
+                self.client.send(message)
                 self.flag = True
 
     def update(self, dt):
         self.tps_count = (self.tps_count + 1) % 3
         self.player.update(dt)
         self.game.update(dt)
+        new_pos = self.player.position
         
-        message = {"code": Protocol.CODE.MOVE.value, "name": self.player.name, 'move': self.player.position, 'time': time()}
-        message_bytes = json.dumps(message).encode()
-        
-        if self.tps_count:
-            self.client.send(message_bytes)
+        if self.tps_count and new_pos != self.old_pos:
+            message = {"code": Protocol.CODE.MOVE.value, "name": self.player.name, 'move': self.player.position, 'time': time()}
+            self.client.send(message)
+
+        self.old_pos = new_pos
         
         for t in self.tasks:
             t()
@@ -509,7 +495,8 @@ class Game(IGame):
         self._scene.draw()
 
     def debug(self):
-        return self._scene.debug()
+        return "1"
+        #return self._scene.debug()
 
     def loop(self, dt):
         self.update(dt)

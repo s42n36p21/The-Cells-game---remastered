@@ -10,12 +10,12 @@ import json
 from collections import deque
 import logging
 from pyglet.event import EventDispatcher
-from server import NetServer
+from server import Protocol
 
 logging.basicConfig(level=logging.DEBUG)
 
 class NetClient(EventDispatcher):
-    def __init__(self, server_host, server_port):
+    def __init__(self, server_host, server_port, use_queue=False):
         self.server_host=server_host
         self.server_port=server_port
         self.running=False
@@ -25,6 +25,7 @@ class NetClient(EventDispatcher):
         self.input_queue = deque()
         self.update_queue = deque()
         self.buffer = b''
+        self.use_queue=use_queue
         logging.debug("NetClient создан")
         if self.connect()==0:
             self._is_connected=True
@@ -94,31 +95,34 @@ class NetClient(EventDispatcher):
                         data = self.input_queue.popleft()
                         self.socket.sendall(json.dumps(data).encode("utf-8")+b"\n")
                 if self.socket in readable:
-                    raw_data = self.socket.recv(4096)
-                    if not raw_data:
-                        logging.info("Получены пустые данные: соединение закрыто")
-                        self.dispatch_event("on_disconnect")
-                        break
-                    update = json.loads(raw_data)
-                    self.dispatch_event("on_receive", update)
-                    self.update_queue.append(update)
-                    # может быть полезно позже
-                    """
-                    self.buffer += raw_data
-                    logging.debug(f"Получено сырых байтов: {len(raw_data)}, буфер: {len(self.buffer)} байт")
-                    
-                    # Парсим буфер на строки (до \n)
-                    while b'\n' in self.buffer:
-                        line_bytes, self.buffer = self.buffer.split(b'\n', 1)
-                        if line_bytes:
-                            try:
-                                message_str = line_bytes.decode("utf-8")
-                                update = json.loads(message_str)
-                                self.update_queue.append(update)
-                            except (UnicodeDecodeError, json.JSONDecodeError) as e:
-                                logging.error(f"Ошибка парсинга строки '{line_bytes.decode('utf-8', errors='ignore')}': {e}")
-                        else:
-                            logging.debug("Получена пустая строка")"""
+                    raw_data = self.socket.recv(4096).decode('utf-8').split("\n")
+                    for data in raw_data[:len(raw_data)-1]:
+                        #logging.info(data)
+                        if not data:
+                            logging.info("Получены пустые данные: соединение закрыто")
+                            self.dispatch_event("on_disconnect")
+                            break
+                        update = json.loads(data)
+                        self.dispatch_event("on_receive", update)
+                        if self.use_queue:
+                            self.update_queue.append(update)
+                        # может быть полезно позже
+                        """
+                        self.buffer += raw_data
+                        logging.debug(f"Получено сырых байтов: {len(raw_data)}, буфер: {len(self.buffer)} байт")
+                        
+                        # Парсим буфер на строки (до \n)
+                        while b'\n' in self.buffer:
+                            line_bytes, self.buffer = self.buffer.split(b'\n', 1)
+                            if line_bytes:
+                                try:
+                                    message_str = line_bytes.decode("utf-8")
+                                    update = json.loads(message_str)
+                                    self.update_queue.append(update)
+                                except (UnicodeDecodeError, json.JSONDecodeError) as e:
+                                    logging.error(f"Ошибка парсинга строки '{line_bytes.decode('utf-8', errors='ignore')}': {e}")
+                            else:
+                                logging.debug("Получена пустая строка")"""
         except ConnectionResetError:
             logging.error(f"Соединение с сервером {self.server_host}:{self.server_port} было разорвано!")
             self.dispatch_event("on_disconnect")
@@ -135,6 +139,8 @@ class NetClient(EventDispatcher):
 
     def get_updates(self):
         """Возвращает все накопленные сообщения"""
+        if not self.use_queue:
+            raise RuntimeError("Невозможно использовать get_updates с use_queue=False")
         updates = list(self.update_queue)
         self.update_queue.clear()
         return updates
@@ -164,25 +170,67 @@ NetClient.register_event_type("on_connect")
 NetClient.register_event_type("on_disconnect")
 NetClient.register_event_type("on_receive")
 
-class GameClient:
+class GameClient(NetClient):
     def __init__(self, server_host, server_port, password, player_name):
-        self.client = NetClient(server_host, server_port)
-        self.client.push_handlers(self)
         self.player_name = player_name
         self.password = password
+        super().__init__(server_host, server_port)
 
     def on_connect(self):
-        self.client.send({"code":NetServer.CODE.HELLO.value, "name":self.player_name, "password":self.password})
+        self.send({"code":Protocol.CODE.HELLO.value, "name":self.player_name, "password":self.password})
 
-    def on_receive(self, update):
-        code = update.get("code")
+    def on_receive(self, update:dict):
+        code = Protocol.CODE(update.get("code"))
         match code:
-            case NetServer.CODE.WRONG_PASSWORD:
+            case Protocol.CODE.WRONG_PASSWORD:
                 raise PermissionError("Неправильный пароль")
-            case NetServer.CODE.WELCOME:
-                self.scheme = update.get("scheme")
-                self.players = update.get("players")
-                logging.info("Вошли!")
+            case Protocol.CODE.WELCOME:
+                scheme = update.get("scheme")
+                players = update.get("players")
+                self.dispatch_event("on_join", scheme, players)
+            case Protocol.CODE.NEW_PLAYER:
+                player_name = update.get("name")
+                self.dispatch_event("on_player_joined", player_name)
+            case Protocol.CODE.PLAYER_MOVE:
+                player_name = update.get("name")
+                pos = update.get("move")
+                moved_time = update.get("time")
+                self.dispatch_event("on_player_moved", player_name, pos, moved_time)
+            case Protocol.CODE.PLAYER_HIT:
+                player_name = update.get("name")
+                hit = update.get("hit")
+                self.dispatch_event("on_player_hit", player_name, hit)
+            case Protocol.CODE.START:
+                players = update.get("players")
+                self.dispatch_event("on_game_start", players)
+            case Protocol.CODE.CLIENT_DISCONNECTED:
+                player_name = update.get("name")
+                self.dispatch_event("on_player_disconnect", player_name)
+
+    def on_player_disconnect(self, player_name):
+        pass
+
+    def on_player_joined(self, player_name):
+        pass
+
+    def on_join(self, scheme, players):
+        pass
+
+    def on_player_moved(self, player_name, pos, moved_time):
+        pass
+
+    def on_player_hit(self, player_name, hit):
+        pass
+
+    def on_game_start(self, players):
+        pass
+
+GameClient.register_event_type("on_player_disconnect")
+GameClient.register_event_type("on_player_joined")
+GameClient.register_event_type("on_join")
+GameClient.register_event_type("on_player_moved")
+GameClient.register_event_type("on_player_hit")
+GameClient.register_event_type("on_game_start")
 
 # debug
 if __name__ == "__main__":
