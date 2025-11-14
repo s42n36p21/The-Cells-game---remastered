@@ -484,6 +484,9 @@ class Menu(Scene):
         for ui in self.ui:
             ui.update(dt)
 
+    def debug(self):
+        pass
+
 
 class Game(IGame):
     def setup(self):
@@ -495,8 +498,7 @@ class Game(IGame):
         self._scene.draw()
 
     def debug(self):
-        return "1"
-        #return self._scene.debug()
+        return self._scene.debug()
 
     def loop(self, dt):
         self.update(dt)

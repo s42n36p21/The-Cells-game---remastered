@@ -192,10 +192,11 @@ class GameClient(NetClient):
                 player_name = update.get("name")
                 self.dispatch_event("on_player_joined", player_name)
             case Protocol.CODE.PLAYER_MOVE:
-                player_name = update.get("name")
-                pos = update.get("move")
-                moved_time = update.get("time")
-                self.dispatch_event("on_player_moved", player_name, pos, moved_time)
+                for move in update["buffer"]:
+                    player_name = move.get("name")
+                    pos = move.get("move")
+                    moved_time = move.get("time")
+                    self.dispatch_event("on_player_moved", player_name, pos, moved_time)
             case Protocol.CODE.PLAYER_HIT:
                 player_name = update.get("name")
                 hit = update.get("hit")
