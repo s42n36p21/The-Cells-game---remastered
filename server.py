@@ -199,11 +199,11 @@ class NetServer:
                 self.players[name]['ready'] = True
                 print([p.get('ready') for p in self.players.values()])
                 if all([p.get('ready') for p in self.players.values()]):
-                    
+                    self.logger.info("Запуск игры")
                     l = P_ENERGY
                     shuffle(l)
                     players = list(zip(self.players, [i.value for i in l]))
-                    self.broadcast({'code':Protocol.CODE.START.value, 'players': players})
+                    await self.broadcast({'code':Protocol.CODE.START.value, 'players': players})
 
     async def broadcast(self, message:dict, exclude:list[tuple] | None = None):
         """Передача сообщения всем клиентам, которые не находятся в списке exclude"""

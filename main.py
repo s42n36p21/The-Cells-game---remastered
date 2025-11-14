@@ -364,66 +364,9 @@ class TCGNetWorkGame(Scene):
         """Если отключился КАКОЙ-ТО игрок"""
         self.remote_players.pop(player_name)
 
-    """
-    def on_receive(self, connection, message):
-        Event for received messages.
-        
-        try:
-            message = json.loads(message.decode())
-        except (json.JSONDecodeError, UnicodeDecodeError) as e:
-            print(f"Ошибка декодирования сообщения: {e}")
-            return
-        
-        code = Protocol.CODE(message.get('code'))
-        #print(message)
-        match code:
-            case Protocol.CODE.WELCOME:
-                self.game.build(message.get('scheme'))
-                self.game.restart(Modes.EXTENDED)
-                rp = message.get('players')
-                print(rp)
-                def f():
-                    for p in rp.values():
-                        name = p.get('name')
-                        position = p.get('position')
-                        print(name, position)
-                        self.remote_players.update({name: Actor(name=name, position=position, batch=self.batch, img='src/actor.png')})
-                self.tasks.append(f)
-
-            case Protocol.CODE.NEW_PLAYER:
-                name = message.get('name')
-                self.tasks.append(lambda: self.remote_players.update({name: Actor(name=name, batch=self.batch, img='src/actor.png')}))
-
-            case Protocol.CODE.PLAYER_MOVE:
-                name = message.get('name')
-                pos = message.get('move')
-                time_ = message.get('time')
-                try:
-                    self.remote_players[name].goto(*pos, time() - time_) 
-                except Exception as e:
-                    print(e)
-                    
-            case Protocol.CODE.START:
-                print(message)
-                pl = [p for p in message.get('players')]
-                for n, p in pl:
-                    if n == self.player.name:
-                        self.player.color = get_color(Energy(p))
-                        self.player.energy = Energy(p)
-                        self.cursor.color = Energy(p)
-                        continue
-                    self.remote_players[n].color = get_color(Energy(p))
-                self.game.join(*[Energy(p) for n, p in pl]) 
-                self.game.restart(Modes.EXTENDED)
-               
-                
-            case Protocol.CODE.PLAYER_HIT:
-                print('этот пидор походил')
-                self.hits.append(message.get('hit'))
-    """
-        
     def on_disconnect(self):
         """Если МЫ САМИ отключились"""
+        # можно, например, перемещать в меню, если отключились
 
     def debug(self):
         x ,y = self.camera.screen_to_world(self.mouse.data.get('x',0), self.mouse.data.get('y',0))
