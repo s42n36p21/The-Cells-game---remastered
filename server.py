@@ -19,6 +19,8 @@ class Protocol:
         WELCOME = 20
         NEW_PLAYER = 30  
         CLIENT_DISCONNECTED=40
+        HEARTBEAT=50
+        ACK = 60
         
         MOVE = 100
         HIT = 110
@@ -151,6 +153,11 @@ class NetServer:
         code = Protocol.CODE(message.get('code'))
         writer = self.connections.get(connection)
         match code:
+            case Protocol.CODE.HEARTBEAT:
+                await self.send(writer, {
+                    "code": Protocol.CODE.ACK.value
+                })
+
             case Protocol.CODE.HELLO:
                 self.logger.info("Попытка входа клиента")
                 name = message.get('name')
@@ -209,5 +216,5 @@ class NetServer:
             await self.send(writer, message)
 
 if __name__ == "__main__":
-    server = NetServer(12345)
+    server = NetServer(CONFIG.get("port"), connection_timeout=True)
     asyncio.run(server.start_forever())

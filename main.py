@@ -366,12 +366,13 @@ class TCGNetWorkGame(Scene):
 
     def on_disconnect(self):
         """Если МЫ САМИ отключились"""
+        print("Пизда соединению!!!")
         # можно, например, перемещать в меню, если отключились
 
     def debug(self):
         x ,y = self.camera.screen_to_world(self.mouse.data.get('x',0), self.mouse.data.get('y',0))
         game = f'Phase: {self.game.phase().name}\n' + '' if self.game.state.phase() != GSA.EDIT else self.game.state._editor.debug()
-        return f'Cursor world position: x={x} y={y}\n' + game + str(self.remote_players) + f"\nTPS:{self.tps_count}"
+        return f'Cursor world position: x={x} y={y}\n' + game + str(self.remote_players) + f"\nTPS:{self.tps_count}" + f"\nHeartBeat:{self.client.heartbeat_count}"
 
     def draw(self):
         with self.camera:
@@ -424,7 +425,7 @@ class TCGNetWorkGame(Scene):
             self.client.send(message)
             self.old_pos = new_pos
 
-        
+        self.client.update()
         
         for t in self.tasks:
             t()
