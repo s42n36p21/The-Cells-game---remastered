@@ -12,7 +12,7 @@ import logging
 from pyglet.event import EventDispatcher
 from server import Protocol
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 class NetClient(EventDispatcher):
     def __init__(self, server_host, server_port, use_queue=False):

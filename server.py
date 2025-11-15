@@ -70,7 +70,7 @@ class NetServer:
         try:
             while self.running:
                 if self.timeout:
-                    data = await asyncio.wait_for(reader.readline(), 30)
+                    data = await asyncio.wait_for(reader.readline(), 15)
                 else:
                     data = await reader.readline()
                 if not data:
@@ -83,6 +83,8 @@ class NetServer:
                     continue
                 dictionary = json.loads(message)
                 await self.handle_message((client_address, client_port), dictionary)
+        except TimeoutError:
+            self.logger.info(f"Клиент {client_address}:{client_port} не отвечает")
         except ConnectionResetError:
             self.logger.info(f"Клиент {client_address}:{client_port} отключился")
             self.connections.pop((client_address, client_port), None)
