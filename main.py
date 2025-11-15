@@ -20,7 +20,7 @@ from client import GameClient
 from server import Protocol
 from widgets import Panel, PanelButton, PanelTextButton
 from time import time
-from TCGBoard import GameBoardStateEdit, GameBoardStateWating, GameBoardStateReaction
+from TCGBoard import GameBoardStateEdit, GameBoardStateWating, GameBoardStateReaction, GameStateAttribute
 from TCGCell import TILE_SIZE
 
 import random
@@ -366,12 +366,13 @@ class TCGNetWorkGame(Scene):
 
     def on_disconnect(self):
         """Если МЫ САМИ отключились"""
+        print("Пизда соединению!!!")
         # можно, например, перемещать в меню, если отключились
 
     def debug(self):
         x ,y = self.camera.screen_to_world(self.mouse.data.get('x',0), self.mouse.data.get('y',0))
         game = f'Phase: {self.game.phase().name}\n' + '' if self.game.state.phase() != GSA.EDIT else self.game.state._editor.debug()
-        return f'Cursor world position: x={x} y={y}\n' + game + str(self.remote_players)
+        return f'Cursor world position: x={x} y={y}\n' + game + str(self.remote_players) + f"\nTPS:{self.tps_count}" + f"\nHeartBeat:{self.client.heartbeat_count}"
 
     def draw(self):
         with self.camera:
@@ -414,16 +415,17 @@ class TCGNetWorkGame(Scene):
                 self.flag = True
 
     def update(self, dt):
-        self.tps_count = (self.tps_count + 1) % 3
+        self.tps_count = (self.tps_count + 1) % 10
         self.player.update(dt)
         self.game.update(dt)
         new_pos = self.player.position
         
-        if self.tps_count and new_pos != self.old_pos:
+        if self.tps_count == 0 and new_pos != self.old_pos:
             message = {"code": Protocol.CODE.MOVE.value, "name": self.player.name, 'move': self.player.position, 'time': time()}
             self.client.send(message)
+            self.old_pos = new_pos
 
-        self.old_pos = new_pos
+        self.client.update()
         
         for t in self.tasks:
             t()
@@ -484,6 +486,9 @@ class Menu(Scene):
         for ui in self.ui:
             ui.update(dt)
 
+    def debug(self):
+        pass
+
 
 class Game(IGame):
     def setup(self):
@@ -495,8 +500,7 @@ class Game(IGame):
         self._scene.draw()
 
     def debug(self):
-        return "1"
-        #return self._scene.debug()
+        return self._scene.debug()
 
     def loop(self, dt):
         self.update(dt)

@@ -1,12 +1,7 @@
-import pyglet
-from pyglet.experimental import net
-import weakref
 import asyncio
 from asyncio import StreamReader, StreamWriter
 import logging
 import json
-from typing import Dict, Any
-import time
 from enum import Enum
 
 from TCGCell import P_ENERGY, Energy
@@ -24,6 +19,8 @@ class Protocol:
         WELCOME = 20
         NEW_PLAYER = 30  
         CLIENT_DISCONNECTED=40
+        HEARTBEAT=50
+        ACK = 60
         
         MOVE = 100
         HIT = 110
@@ -73,7 +70,7 @@ class NetServer:
         try:
             while self.running:
                 if self.timeout:
-                    data = await asyncio.wait_for(reader.readline(), 30)
+                    data = await asyncio.wait_for(reader.readline(), 15)
                 else:
                     data = await reader.readline()
                 if not data:
@@ -86,6 +83,8 @@ class NetServer:
                     continue
                 dictionary = json.loads(message)
                 await self.handle_message((client_address, client_port), dictionary)
+        except TimeoutError:
+            self.logger.info(f"Клиент {client_address}:{client_port} не отвечает")
         except ConnectionResetError:
             self.logger.info(f"Клиент {client_address}:{client_port} отключился")
             self.connections.pop((client_address, client_port), None)
@@ -156,6 +155,11 @@ class NetServer:
         code = Protocol.CODE(message.get('code'))
         writer = self.connections.get(connection)
         match code:
+            case Protocol.CODE.HEARTBEAT:
+                await self.send(writer, {
+                    "code": Protocol.CODE.ACK.value
+                })
+
             case Protocol.CODE.HELLO:
                 self.logger.info("Попытка входа клиента")
                 name = message.get('name')
@@ -180,10 +184,10 @@ class NetServer:
                 
                 self.players[name]['position'] = pos
                 await self.broadcast({
-                    'code': Protocol.CODE.PLAYER_MOVE.value,
-                    'name': name,
-                    'move': pos ,
-                    'time': time
+                    "code": Protocol.CODE.PLAYER_MOVE.value,
+                    "name": name,
+                    "move": pos,
+                    "time": time
                 }, exclude=[connection])
                 
             case Protocol.CODE.HIT:
@@ -214,5 +218,5 @@ class NetServer:
             await self.send(writer, message)
 
 if __name__ == "__main__":
-    server = NetServer(12345)
+    server = NetServer(CONFIG.get("port"), connection_timeout=True)
     asyncio.run(server.start_forever())

@@ -12,7 +12,7 @@ import logging
 from pyglet.event import EventDispatcher
 from server import Protocol
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 class NetClient(EventDispatcher):
     def __init__(self, server_host, server_port, use_queue=False):
@@ -97,7 +97,6 @@ class NetClient(EventDispatcher):
                 if self.socket in readable:
                     raw_data = self.socket.recv(4096).decode('utf-8').split("\n")
                     for data in raw_data[:len(raw_data)-1]:
-                        #logging.info(data)
                         if not data:
                             logging.info("Получены пустые данные: соединение закрыто")
                             self.dispatch_event("on_disconnect")
@@ -106,23 +105,7 @@ class NetClient(EventDispatcher):
                         self.dispatch_event("on_receive", update)
                         if self.use_queue:
                             self.update_queue.append(update)
-                        # может быть полезно позже
-                        """
-                        self.buffer += raw_data
-                        logging.debug(f"Получено сырых байтов: {len(raw_data)}, буфер: {len(self.buffer)} байт")
-                        
-                        # Парсим буфер на строки (до \n)
-                        while b'\n' in self.buffer:
-                            line_bytes, self.buffer = self.buffer.split(b'\n', 1)
-                            if line_bytes:
-                                try:
-                                    message_str = line_bytes.decode("utf-8")
-                                    update = json.loads(message_str)
-                                    self.update_queue.append(update)
-                                except (UnicodeDecodeError, json.JSONDecodeError) as e:
-                                    logging.error(f"Ошибка парсинга строки '{line_bytes.decode('utf-8', errors='ignore')}': {e}")
-                            else:
-                                logging.debug("Получена пустая строка")"""
+
         except ConnectionResetError:
             logging.error(f"Соединение с сервером {self.server_host}:{self.server_port} было разорвано!")
             self.dispatch_event("on_disconnect")
@@ -174,7 +157,16 @@ class GameClient(NetClient):
     def __init__(self, server_host, server_port, password, player_name):
         self.player_name = player_name
         self.password = password
+        self.heartbeat_count = 0
+        self.ack = True
         super().__init__(server_host, server_port)
+
+    def send_heartbeat(self):
+        self.send(
+            {
+                "code": Protocol.CODE.HEARTBEAT.value
+            }
+        )
 
     def on_connect(self):
         self.send({"code":Protocol.CODE.HELLO.value, "name":self.player_name, "password":self.password})
@@ -182,6 +174,9 @@ class GameClient(NetClient):
     def on_receive(self, update:dict):
         code = Protocol.CODE(update.get("code"))
         match code:
+            case Protocol.CODE.ACK:
+                self.ack=True
+                self.dispatch_event("heartbeat_ack")
             case Protocol.CODE.WRONG_PASSWORD:
                 raise PermissionError("Неправильный пароль")
             case Protocol.CODE.WELCOME:
@@ -207,6 +202,18 @@ class GameClient(NetClient):
                 player_name = update.get("name")
                 self.dispatch_event("on_player_disconnect", player_name)
 
+    def update(self):
+        self.heartbeat_count = (self.heartbeat_count + 1) % 300
+        if self.heartbeat_count == 0:
+            self.send_heartbeat()
+            if not self.ack:
+                self.close()
+                return
+            self.ack = False
+
+    def heartbeat_ack(self):
+        pass
+
     def on_player_disconnect(self, player_name):
         pass
 
@@ -225,6 +232,7 @@ class GameClient(NetClient):
     def on_game_start(self, players):
         pass
 
+GameClient.register_event_type("heartbeat_ack")
 GameClient.register_event_type("on_player_disconnect")
 GameClient.register_event_type("on_player_joined")
 GameClient.register_event_type("on_join")
