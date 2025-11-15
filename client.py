@@ -97,7 +97,7 @@ class NetClient(EventDispatcher):
                 if self.socket in readable:
                     raw_data = self.socket.recv(4096).decode('utf-8').split("\n")
                     for data in raw_data[:len(raw_data)-1]:
-                        #logging.info(data)
+                        logging.info(data)
                         if not data:
                             logging.info("Получены пустые данные: соединение закрыто")
                             self.dispatch_event("on_disconnect")
@@ -106,23 +106,7 @@ class NetClient(EventDispatcher):
                         self.dispatch_event("on_receive", update)
                         if self.use_queue:
                             self.update_queue.append(update)
-                        # может быть полезно позже
-                        """
-                        self.buffer += raw_data
-                        logging.debug(f"Получено сырых байтов: {len(raw_data)}, буфер: {len(self.buffer)} байт")
-                        
-                        # Парсим буфер на строки (до \n)
-                        while b'\n' in self.buffer:
-                            line_bytes, self.buffer = self.buffer.split(b'\n', 1)
-                            if line_bytes:
-                                try:
-                                    message_str = line_bytes.decode("utf-8")
-                                    update = json.loads(message_str)
-                                    self.update_queue.append(update)
-                                except (UnicodeDecodeError, json.JSONDecodeError) as e:
-                                    logging.error(f"Ошибка парсинга строки '{line_bytes.decode('utf-8', errors='ignore')}': {e}")
-                            else:
-                                logging.debug("Получена пустая строка")"""
+
         except ConnectionResetError:
             logging.error(f"Соединение с сервером {self.server_host}:{self.server_port} было разорвано!")
             self.dispatch_event("on_disconnect")
@@ -192,11 +176,10 @@ class GameClient(NetClient):
                 player_name = update.get("name")
                 self.dispatch_event("on_player_joined", player_name)
             case Protocol.CODE.PLAYER_MOVE:
-                for move in update["buffer"]:
-                    player_name = move.get("name")
-                    pos = move.get("move")
-                    moved_time = move.get("time")
-                    self.dispatch_event("on_player_moved", player_name, pos, moved_time)
+                player_name = update.get("name")
+                pos = update.get("move")
+                moved_time = update.get("time")
+                self.dispatch_event("on_player_moved", player_name, pos, moved_time)
             case Protocol.CODE.PLAYER_HIT:
                 player_name = update.get("name")
                 hit = update.get("hit")

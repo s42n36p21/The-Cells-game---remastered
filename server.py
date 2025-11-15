@@ -1,12 +1,7 @@
-import pyglet
-from pyglet.experimental import net
-import weakref
 import asyncio
 from asyncio import StreamReader, StreamWriter
 import logging
 import json
-from typing import Dict, Any
-import time
 from enum import Enum
 
 from TCGCell import P_ENERGY, Energy
@@ -48,8 +43,6 @@ class NetServer:
         self.server = None
         self.timeout = connection_timeout
         self.connections = {}
-        self.move_buffer = {"code": Protocol.CODE.PLAYER_MOVE.value, "buffer": []}
-        self.move_buffer_count = 0
         self.db = {
             "register":CONFIG
         }
@@ -176,23 +169,17 @@ class NetServer:
                     
                     
             case Protocol.CODE.MOVE:
-                self.move_buffer_count+=1
                 name = message.get('name')
                 pos = message.get('move')
                 time = message.get('time')
                 
                 self.players[name]['position'] = pos
-                self.move_buffer["buffer"].append(
-                    {
-                        "name": name,
-                        "move": pos,
-                        "time": time
-                    }
-                )
-                if self.move_buffer_count>3:
-                    await self.broadcast(self.move_buffer, exclude=[connection])
-                    self.move_buffer["buffer"].clear()
-                    self.move_buffer_count=0
+                await self.broadcast({
+                    "code": Protocol.CODE.PLAYER_MOVE.value,
+                    "name": name,
+                    "move": pos,
+                    "time": time
+                }, exclude=[connection])
                 
             case Protocol.CODE.HIT:
                 self.logger.info('пидор походил')
