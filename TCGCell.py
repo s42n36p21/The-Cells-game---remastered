@@ -27,10 +27,11 @@ class RULES: # ЗАДЕЛ НА БУДУЩЕЕ
     def reachable(cls, cell, owner):
         if not cls.BLOCK_INSULAR:
             return True
-        
-        if cls._context.players.ptr.immunity:
+        try:
+            if cls._context.players.ptr.immunity:
+                return True
+        except:
             return True
-        
         if cell.owner == owner:
             return True
         

@@ -357,7 +357,6 @@ class TCGNetWorkGame(Scene):
         self.game.restart(Modes.EXTENDED)
 
     def on_player_hit(self, player_name, hit):
-        print('этот пидор походил')
         self.hits.append(hit)
 
     def on_player_disconnect(self, player_name):
@@ -366,7 +365,9 @@ class TCGNetWorkGame(Scene):
 
     def on_disconnect(self):
         """Если МЫ САМИ отключились"""
-        print("Пизда соединению!!!")
+        def task():
+            self._master._scene = Menu(self._master)
+        self.tasks.append(task)
         # можно, например, перемещать в меню, если отключились
 
     def debug(self):
@@ -410,7 +411,6 @@ class TCGNetWorkGame(Scene):
         if cell:
             if cell.model.hit(owner=self.player.energy):
                 message = {"code": Protocol.CODE.HIT.value, "name": self.player.name, 'hit': (row, col)}
-                print('ПОХОДИЛ СУКА')
                 self.client.send(message)
                 self.flag = True
 
@@ -472,7 +472,6 @@ class Menu(Scene):
         self.batch.draw()
 
     def on_widget_click(self, button):
-        print("FFFFFF")
         cmd =  button.label.text
         match cmd:
             case 'Локальная игра':
@@ -487,7 +486,7 @@ class Menu(Scene):
             ui.update(dt)
 
     def debug(self):
-        pass
+        return ''
 
 
 class Game(IGame):
