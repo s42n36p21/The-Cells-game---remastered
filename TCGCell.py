@@ -9,13 +9,14 @@ from pyglet import gl
 from pyglet.text import Label
 from colorsys import hsv_to_rgb
 from collections import deque
+import pyglet
 #from TCGBoard import GameBoard
 
 class RULES: # ЗАДЕЛ НА БУДУЩЕЕ
     _context = None
     
     BLOCK_SURROUNDED = 0
-    BLOCK_INSULAR = 0
+    BLOCK_INSULAR = 1
     HIDE_MOD = 0
     
     @classmethod
@@ -274,14 +275,26 @@ def get_side(cell:CellModel, other: CellModel, dist=1):
             return W
     
     return 0    
-     
+    
+from pyglet.gl import *
 
-
+blend_src = GL_SRC_ALPHA
+blend_dest = GL_ONE_MINUS_SRC_ALPHA
 
 class CellView:
     SENSOR_GROUP = Group(order=0)
     BODY_GROUP = Group(order=1)
     PARTICLE_GROUP = Group(order=2)
+    
+    
+    SENSOR_GROUP.blend_src = GL_SRC_ALPHA
+    SENSOR_GROUP.blend_dest = GL_ONE_MINUS_SRC_ALPHA
+    
+    BODY_GROUP.blend_src = GL_SRC_ALPHA
+    BODY_GROUP.blend_dest = GL_ONE_MINUS_SRC_ALPHA
+    
+    PARTICLE_GROUP.blend_src = GL_SRC_ALPHA
+    PARTICLE_GROUP.blend_dest = GL_ONE_MINUS_SRC_ALPHA
     
     SENSOR_TYPE = settings.sensor_type
     
@@ -289,13 +302,29 @@ class CellView:
         self.model = cell_model
         self.batch = batch or Batch()
         
+        self._setup()
+        
         row, col = cell_model.position
-        self.display = Rectangle(col*TILE_SIZE+PAD, row*TILE_SIZE+PAD, TILE_SIZE-PAD*2, TILE_SIZE-PAD*2,
-                                 color=(0,0,0,255), batch=batch, group=self.SENSOR_GROUP)
-        self.body = Sprite(img_body, col*TILE_SIZE, row*TILE_SIZE, batch=batch, group=self.BODY_GROUP)
+        
+        self.display = Rectangle(PAD*2,PAD*2, 2*(TILE_SIZE-PAD-PAD), 2*(TILE_SIZE-PAD-PAD),
+                                 color=(0,0,0), batch=self.render_batch , group=self.SENSOR_GROUP, 
+                                 blend_dest=blend_dest, blend_src=blend_src)
+        
+        self.body = Sprite(img_body, 0, 0, batch=self.render_batch, group=self.BODY_GROUP,
+                          blend_dest=blend_dest, blend_src=blend_src)
+        self.body.scale = 2
         self.sides = []
         self.sensor = None
         
+        self.result = None
+    
+    def _setup(self):
+        self.render_batch = Batch()
+        self.texture = pyglet.image.Texture.create(TILE_SIZE*2, TILE_SIZE*2,)# min_filter=GL_NEAREST, mag_filter=GL_NEAREST)
+        self.fbo = pyglet.image.Framebuffer()
+        self.fbo.attach_texture(self.texture)
+        self.result = None
+    
     def render_sides(self):
         for side in self.sides:
             side.delete()
@@ -310,26 +339,39 @@ class CellView:
         
         row, col = self.model.position
 
-        if 0:[print(index, bin(side), bin(f_side), not(side ^ f_side)) \
-            for index, side in enumerate(SIDES)]
+        blend_dest = GL_ONE_MINUS_SRC_ALPHA
+        blend_src = GL_SRC_ALPHA
 
-        self.sides = [Sprite(IMG[index], col*TILE_SIZE, row*TILE_SIZE,
-                              batch=self.batch, group=self.PARTICLE_GROUP) \
+        self.sides = [Sprite(IMG[index], 0,0,
+                              batch=self.render_batch, group=self.PARTICLE_GROUP,
+                              blend_dest=blend_dest, blend_src=blend_src) \
             for index, side in enumerate(SIDES) if (side & f_side) == side]
+        for s in self.sides:
+            s.scale = 2
                    
     def render_sensor(self):
+
         if self.sensor is not None:
             self.sensor.delete()
         
         row, col = self.model.position
         cx, cy = col*TILE_SIZE + TILE_SIZE/2, row*TILE_SIZE + TILE_SIZE/2
         
+        blend_dest = GL_ONE_MINUS_SRC_ALPHA
+        blend_src = GL_SRC_ALPHA
+        
         if settings.sensor_type:
             lim_power = self.model.lim_power() or float('inf')
             progress = self.model.power / lim_power
-            self.sensor = Sector(cx, cy, TILE_SIZE/3, None,-360*progress, start_angle=90,color=get_color(self.model.owner), group=self.SENSOR_GROUP, batch=self.batch)
+            self.sensor = Sector(32*2,32*2, TILE_SIZE/3*2, None,-360*progress, start_angle=90,
+                                color=(*get_color(self.model.owner)[:3], 255), 
+                                group=self.SENSOR_GROUP, batch=self.render_batch,
+                                blend_dest=blend_dest, blend_src=blend_src)
+            
         else:
-            self.sensor = Label(str(self.model.power), cx, cy+1, anchor_x='center', anchor_y='center', color=get_color(self.model.owner), font_size=12, weight='bold', group=self.SENSOR_GROUP, batch=self.batch)
+            self.sensor = Label(str(self.model.power), 32*2,32*2+2, anchor_x='center', anchor_y='center', 
+                               color=(*get_color(self.model.owner)[:3], 255), font_size=11*2, weight='bold',dpi=96,
+                               group=self.SENSOR_GROUP, batch=self.render_batch)
     
     def update(self):
         if self.sensor is None:
@@ -339,12 +381,11 @@ class CellView:
         except:
             owner = Energy.NEUTRAL
         if RULES.HIDE_MOD and (self.model.owner not in [owner, Energy.NEUTRAL]):
-            #if RULES._context is not None:
             if settings.sensor_type:
                 self.sensor.angle = -360
             else:
                 self.sensor.text = '?'
-            self.sensor.color = get_color(Energy.OTHER)
+            self.sensor.color = (*get_color(Energy.OTHER)[:3], 255)
         else:
             if settings.sensor_type:
                 lim_power = self.model.lim_power() or float('inf')
@@ -352,7 +393,25 @@ class CellView:
                 self.sensor.angle = -360*progress
             else:
                 self.sensor.text = str(self.model.power)
-            self.sensor.color = get_color(self.model.owner)
+            self.sensor.color = (*get_color(self.model.owner)[:3], 255)
+            
+        # Устанавливаем opacity для всех элементов
+
+        self.render()
+
+    def render(self):
+        self.fbo.bind()
+        glClearColor(0,0,0,0)
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+        self.render_batch.draw()
+        self.fbo.unbind()
+        row, col = self.model.position
+        
+        if self.result:
+            self.result.delete()
+        self.result = Sprite(self.texture,col*TILE_SIZE, row*TILE_SIZE, batch=self.batch, )
+        self.result.scale = 1/2
+        self.result.opacity = 255
         
     def destroy(self):
         self.body.delete()
@@ -363,8 +422,9 @@ class CellView:
             side.delete()
 
     def draw(self):
-        self.batch.draw()
-    
+        self.batch.draw()    
+
+
 class Cell:
     def __init__(self, position, batch):
         self.model = CellModel(position)
@@ -395,10 +455,13 @@ class CloseCellView(CellView):
         self.model = cell_model
         self.batch = batch or Batch()
         
-        row, col = cell_model.position
-        self.display = Rectangle(col*TILE_SIZE+PAD, row*TILE_SIZE+PAD, TILE_SIZE-PAD*2, TILE_SIZE-PAD*2,
-                                 color=(0,0,0,255), batch=batch, group=self.SENSOR_GROUP)
-        self.body = Sprite(img_close_body, col*TILE_SIZE, row*TILE_SIZE, batch=batch, group=self.BODY_GROUP)
+        self._setup()
+        
+        row, col = 2,2
+        self.display = Rectangle(2*PAD, 2*PAD, 2*TILE_SIZE-PAD*4, 2*TILE_SIZE-PAD*4,
+                                 color=(0,0,0,255), batch=self.render_batch, group=self.SENSOR_GROUP)
+        self.body = Sprite(img_close_body,0,0, batch=self.render_batch, group=self.BODY_GROUP)
+        self.body.scale=2
         self.sides = []
         self.sensor = None
         
@@ -410,24 +473,28 @@ class CloseCell(Cell):
         
 class VoidCellView(CellView):
     def render_sensor(self):
+
         VOID_COLOR = [31]*3
         
         if self.sensor is not None:
             self.sensor.delete()
         
-        row, col = self.model.position
+        row, col = 0,0
         cx, cy = col*TILE_SIZE + TILE_SIZE/2, row*TILE_SIZE + TILE_SIZE/2
         
         if settings.sensor_type:
             lim_power = self.model.lim_power() or float('inf')
             progress = self.model.power / lim_power
-            self.sensor = Sector(cx, cy, TILE_SIZE/3, None, 0, start_angle=90,color=VOID_COLOR, group=self.SENSOR_GROUP, batch=self.batch)
+            self.sensor = Sector(32*2,32*2, TILE_SIZE/3*2, None, 0, start_angle=90,color=VOID_COLOR, group=self.SENSOR_GROUP, batch=self.render_batch)
         else:
-            self.sensor = Label("X", cx, cy+1, anchor_x='center', anchor_y='center', color=VOID_COLOR, font_size=12, weight='bold', group=self.SENSOR_GROUP, batch=self.batch)
-    
-        
+            self.sensor = Label("X", 32*2,32*2+2, anchor_x='center', anchor_y='center', 
+                               color=VOID_COLOR, font_size=11*2, weight='bold',dpi=96,
+                               group=self.PARTICLE_GROUP, batch=self.render_batch)
+            
     def update(self):
-        return 
+        self.render()
+    
+    
         
 class VoidCellModel(CloseCellModel):
     def charge(self, owner, amount=1):
@@ -441,6 +508,7 @@ class VoidCell(Cell):
     def __init__(self, position, batch):
         self.model = VoidCellModel(position)
         self.view = VoidCellView(self.model, batch)
+        
 
 class ProtectedCellModel(CellModel):
     def __init__(self, position):
@@ -525,12 +593,16 @@ class MagicCellView(CellView):
         self.model = cell_model
         self.batch = batch or Batch()
         
-        row, col = cell_model.position
-        self.display = Rectangle(col*TILE_SIZE+PAD, row*TILE_SIZE+PAD, TILE_SIZE-PAD*2, TILE_SIZE-PAD*2,
-                                 color=(0,0,0,255), batch=batch, group=self.SENSOR_GROUP)
-        self.body = Sprite(img_magic_body, col*TILE_SIZE, row*TILE_SIZE, batch=batch, group=self.BODY_GROUP)
-        self.port_color = Box(col*TILE_SIZE+PAD-4, row*TILE_SIZE+PAD-4, TILE_SIZE-PAD*2+8, TILE_SIZE-PAD*2+8, thickness=10,
-                                 color=self.get_port_color(port), batch=batch, group=self.SENSOR_GROUP)
+        self._setup()
+        
+        row, col = 0,0
+        self.display = Rectangle(col*TILE_SIZE+PAD*2, row*TILE_SIZE+PAD*2, TILE_SIZE*2-PAD*2*2, TILE_SIZE*2-PAD*2*2,
+                                 color=(0,0,0,255), batch=self.render_batch, group=self.SENSOR_GROUP)
+        self.body = Sprite(img_magic_body, col*TILE_SIZE, row*TILE_SIZE, batch=self.render_batch, group=self.BODY_GROUP)
+        self.body.scale = 2
+        GAP = 2 * 4
+        self.port_color = Box(PAD*2 - GAP, PAD*2- GAP, (TILE_SIZE-PAD*2)*2 +  2*GAP, (TILE_SIZE-PAD*2)*2+  2*GAP, thickness=20,
+                                 color=self.get_port_color(port), batch=self.render_batch, group=self.SENSOR_GROUP)
         self.sides = []
         self.sensor = None
         
@@ -547,6 +619,7 @@ class MagicCellView(CellView):
         self.port[self.my_port].remove(self)
         
     def update(self):
+        #return super().update()
         for cell in self.port[self.my_port]:
             CellView.update(cell)
     

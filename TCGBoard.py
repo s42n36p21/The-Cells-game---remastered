@@ -7,6 +7,7 @@ from typing import Literal
 from pyglet.math import Vec2
 from time import time
 from itertools import cycle
+from math import pi
 
 
 settings = Settings()
@@ -201,16 +202,50 @@ class Saver:
         "links": ' '.join(links)
     }
 }
+    @staticmethod
+    def sort_cells(center=(0,0)):
+        center = Vec2(*center) * TILE_SIZE + TILE_SIZE / 2
+        def calc(cell: Cell):
+            nonlocal center
+            y, x = cell[0]
+            dist = (x* TILE_SIZE+ TILE_SIZE / 2, y* TILE_SIZE+ TILE_SIZE / 2) - center
+            print(dist.length_squared(), dist.heading())
+            return dist.length_squared(), dist.heading() + pi
+        return calc
+    
+    @staticmethod
+    def calc_center(cells):
+        minx, miny, \
+        maxx, maxy = float('inf'), float('inf'), -float('inf'), -float('inf')
+        for pos, cell in cells:
+            y, x = pos
+            print(x, y)
+            minx = min(minx, x)
+            maxx = max(maxx, x)
+            miny = min(miny, y)
+            maxy = max(maxy, y)
+        return Vec2(maxx + minx , maxy + miny) / 2
+
     def save_extanded(self):
-        cell_buffer = []
+        cell_buffer2 = list(self.cells.items())
+        center = self.calc_center(cell_buffer2)
+        calc = self.sort_cells(center)
+        from math import floor, ceil
+        dcol, drow = map(floor, center)
+
+        cell_buffer2.sort(key=calc)
+        print(center)
         cells = []
         links = []
         index = 0
-        for pos, cell in self.cells.items():
+
+        cell_buffer = []
+
+        for pos, cell in cell_buffer2:
             cell.model.mark = index
             cell_buffer.append(cell.model)
             row, col = pos
-            cells.append(f'{row} {col} {TYPE_CELL.index(type(cell))}')
+            cells.append(f'{row - drow} {col-dcol} {TYPE_CELL.index(type(cell))}')
             index += 1
         index = 0
         for c in cell_buffer:
@@ -260,6 +295,7 @@ class Builder:
         self.batch = batch
         self.build_task = None
         self.product = dict()
+        self.tick  = 0
     
     def get_product(self):
         return self.product
@@ -285,6 +321,9 @@ class Builder:
             row, col = int(d.get('row')), int(d.get('col'))
             cell = Cell((row, col), self.batch)
             cell_buffer.append(cell)
+            cell.view.render_sides()
+            cell.view.render_sensor()
+            cell.view.update()
             yield
             
         for args in zip(*([links]*len(linkf))):
@@ -292,6 +331,7 @@ class Builder:
             c1, c2, tl = int(d.get('ci0')), int(d.get('ci1')), int(d.get('tl'))
             a, b = cell_buffer[c1], cell_buffer[c2]
             link_cell(a, b, type=tl)
+
             yield
           
         for cell in cell_buffer:
@@ -325,6 +365,9 @@ class Builder:
             row, col, tc = int(d.get('row')), int(d.get('col')), int(d.get('tc', 0))
             cell = TYPE_CELL[tc]((row, col), self.batch)
             cell_buffer.append(cell)
+            cell.view.render_sides()
+            cell.view.render_sensor()
+            cell.view.update()
             yield
             
         for args in zip(*([links]*len(linkf))):
@@ -332,6 +375,12 @@ class Builder:
             c1, c2, tl = int(d.get('ci0')), int(d.get('ci1')), int(d.get('tl'))
             a, b = cell_buffer[c1], cell_buffer[c2]
             link_cell(a, b, type=tl)
+            a.view.render_sides()
+            a.view.render_sensor()
+            a.view.update()
+            b.view.render_sides()
+            b.view.render_sensor()
+            b.view.update()
             yield
           
         for cell in cell_buffer:
@@ -399,6 +448,11 @@ class Builder:
     
     def build(self, work_time):
         now = time()
+        self.tick += 1
+        if self.tick > 2:
+            self.tick = 0
+        if self.tick:
+            return
         while work_time > (time() - now):
             
             try:
@@ -511,8 +565,6 @@ class GameBoardStateBuild(GameBoardState):
             self.switch_state(GameBoardStateReady)
         SoundEffects.play('start')
     
-    def draw(self):
-        return
     
 class GameBoardStateWating(GameBoardState):
     def phase(self):
