@@ -12,18 +12,33 @@ from collections import deque
 import pyglet
 #from TCGBoard import GameBoard
 
+
 class RULES: # ЗАДЕЛ НА БУДУЩЕЕ
     _context = None
     
     BLOCK_SURROUNDED = 0
     BLOCK_INSULAR = 1
-    HIDE_MOD = 0
-    WALLS = 0
+    HIDE_MODE = 0
+    FOG_OF_WAR = 1
+    ONLINE_MODE = 0
+    WALLS = 1
     
     @classmethod
     def context(cls, ctx=None):
         cls._context = ctx
     
+    @classmethod
+    def is_hide(cls, cell):
+        a_factor = b_factor = c_factor = False
+        try:
+            owner = RULES._context.this if cls.ONLINE_MODE else RULES._context.players.ptr.value
+        except:
+            owner = Energy.NEUTRAL
+        a_factor = cls.HIDE_MODE and (cell.owner not in [owner, Energy.NEUTRAL]) 
+        b_factor = cls.FOG_OF_WAR and cls.BLOCK_INSULAR and (not RULES.reachable(cell, owner))
+
+        return a_factor or b_factor
+
     @classmethod
     def reachable(cls, cell, owner):
         if not cls.BLOCK_INSULAR:
@@ -58,7 +73,7 @@ class RULES: # ЗАДЕЛ НА БУДУЩЕЕ
         
         if (len(sur) == 1):
             return sur.pop()
-
+        
 settings = Settings()
 settings.load()
 
@@ -402,11 +417,7 @@ class CellView:
         if self.sensor is None:
             return
         self.goast()
-        try:
-            owner = RULES._context.players.ptr.value
-        except:
-            owner = Energy.NEUTRAL
-        if RULES.HIDE_MOD and (self.model.owner not in [owner, Energy.NEUTRAL]):
+        if RULES.is_hide(self.model):
             if settings.sensor_type:
                 self.sensor.angle = -360
             else:

@@ -21,7 +21,7 @@ from server import Protocol
 from widgets import Panel, PanelButton, PanelTextButton
 from time import time
 from TCGBoard import GameBoardStateEdit, GameBoardStateWating, GameBoardStateReaction, GameStateAttribute
-from TCGCell import TILE_SIZE, PAD
+from TCGCell import TILE_SIZE, PAD, RULES
 
 import random
 with open('server.json', 'r', encoding='utf-8') as file:
@@ -203,7 +203,7 @@ PLAYERS = get_players(settings.amount_players)
 class TCGGame(Scene):
     def setup(self):
         #self.ui_batch = pyglet.graphics.Batch()
-
+        RULES.ONLINE_MODE = 0
         self.batch = pyglet.graphics.Batch()
         self.camera = Camera(self._master)
         self.back_ground = Background(settings.background, self._master)
@@ -300,6 +300,8 @@ class TCGGame(Scene):
 
 class TCGNetWorkGame(Scene):
     def setup(self):
+        RULES.ONLINE_MODE = 1
+
         self.old_pos = Vec2(0, 0)
         self.tps_count = 0
         
@@ -366,7 +368,7 @@ class TCGNetWorkGame(Scene):
         for n, p in pl:
             if n == self.player.name:
                 self.player.color = get_color(Energy(p))
-                self.player.energy = Energy(p)
+                self.player.energy = self.game.this = Energy(p)
                 self.cursor.color = Energy(p)
                 continue
             self.remote_players[n].color = get_color(Energy(p))
@@ -465,6 +467,7 @@ class TCGNetWorkGame(Scene):
 class Menu(Scene):
     def setup(self):
         self.batch = pyglet.graphics.Batch()
+        
 
         #self.camera = Camera(self._master)
         self.back_ground = Background(settings.background, self._master)

@@ -676,7 +676,7 @@ class GameBoardStateReaction(GameBoardState):
                     self.master.players.kick(loser)
                 if self.check_pat():
                     return
-                if RULES.HIDE_MOD:
+                if RULES.HIDE_MODE or RULES.BLOCK_INSULAR:
                     for cell in self.cells():
                         cell.view.update()
                 self.switch_state(GameBoardStateWating)
@@ -723,6 +723,7 @@ class GameBoard:
         self.batch = pyglet.graphics.Batch()
         self.state = GameBoardState(self)
         self.players = Players()
+        self.this = None
     
     def join(self, *players):
         self.players.join(*players)
