@@ -21,7 +21,7 @@ from server import Protocol
 from widgets import Panel, PanelButton, PanelTextButton
 from time import time
 from TCGBoard import GameBoardStateEdit, GameBoardStateWating, GameBoardStateReaction, GameStateAttribute
-from TCGCell import TILE_SIZE
+from TCGCell import TILE_SIZE, PAD
 
 import random
 with open('server.json', 'r', encoding='utf-8') as file:
@@ -78,7 +78,7 @@ class HotKeys:
         
         elif key == pyglet.window.key.P:
             game: GameBoard  = self.master.game
-            s = game.save(mod=Modes.CLASSIC)
+            s = game.save(mod=Modes.EXTENDED)
             from time import time
             with open(f'{time()}.json', 'w', encoding='utf-8') as file:
                 json.dump(s, file, ensure_ascii=False, indent=4)
@@ -263,8 +263,15 @@ class TCGGame(Scene):
         with self.camera:
             self.back_ground.draw()
             self.game.draw()
+            x, y = self.player.position 
+            row, col = y // TILE_SIZE, x // TILE_SIZE
+            
+        #
             
             self.batch.draw()
+           # pyglet.shapes.Rectangle(TILE_SIZE*col + PAD,TILE_SIZE*row +PAD, (TILE_SIZE-PAD-PAD), (TILE_SIZE-PAD-PAD)).draw()
+            #pyglet.shapes.Circle(x,y,self.player._sprite.height/3, color=(255,0,0,128)).draw()
+            #pyglet.shapes.Circle(TILE_SIZE*col + TILE_SIZE//2, TILE_SIZE*row + TILE_SIZE//2, PAD/2 , color=(0,255,0,128)).draw()
             
 #        self.ui_batch.draw()
         self.debuger.draw()
@@ -272,9 +279,19 @@ class TCGGame(Scene):
 
     def update(self, dt):
         
+    
+        
         self.player.update(dt)
         self.game.update(dt)
         #self.panel.update(dt)  
+        x, y = self.player.position 
+        row, col = y // TILE_SIZE, x // TILE_SIZE
+        
+        if (self.game.cells.get((row, col))) and (((Vec2(x,y) - Vec2(TILE_SIZE*col + TILE_SIZE//2, TILE_SIZE*row + TILE_SIZE//2)).length() < \
+            (self.player._sprite.height / 3 + PAD/2)) ):
+            self.player._sprite.current.opacity = 127 
+        else:
+            self.player._sprite.current.opacity = 255
         
         if self.game.phase() == GSA.WATING:
             self.cursor.color = self.game.players.current()
@@ -508,6 +525,6 @@ class Game(IGame):
 
 if __name__ == "__main__":
     app = Game(tps=120, caption="The Cells game - remastered", resizable=True)
-    pyglet.app.run(1/120)
+    pyglet.app.run(1/(60*2))
 
     

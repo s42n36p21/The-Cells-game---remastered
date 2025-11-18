@@ -209,7 +209,7 @@ class Saver:
             nonlocal center
             y, x = cell[0]
             dist = (x* TILE_SIZE+ TILE_SIZE / 2, y* TILE_SIZE+ TILE_SIZE / 2) - center
-            print(dist.length_squared(), dist.heading())
+
             return dist.length_squared(), dist.heading() + pi
         return calc
     
@@ -219,7 +219,7 @@ class Saver:
         maxx, maxy = float('inf'), float('inf'), -float('inf'), -float('inf')
         for pos, cell in cells:
             y, x = pos
-            print(x, y)
+
             minx = min(minx, x)
             maxx = max(maxx, x)
             miny = min(miny, y)
@@ -234,7 +234,7 @@ class Saver:
         dcol, drow = map(floor, center)
 
         cell_buffer2.sort(key=calc)
-        print(center)
+
         cells = []
         links = []
         index = 0
@@ -365,9 +365,9 @@ class Builder:
             row, col, tc = int(d.get('row')), int(d.get('col')), int(d.get('tc', 0))
             cell = TYPE_CELL[tc]((row, col), self.batch)
             cell_buffer.append(cell)
-            cell.view.render_sides()
-            cell.view.render_sensor()
-            cell.view.update()
+            #cell.view.render_sides()
+            #cell.view.render_sensor()
+            #cell.view.update()
             yield
             
         for args in zip(*([links]*len(linkf))):
@@ -375,12 +375,12 @@ class Builder:
             c1, c2, tl = int(d.get('ci0')), int(d.get('ci1')), int(d.get('tl'))
             a, b = cell_buffer[c1], cell_buffer[c2]
             link_cell(a, b, type=tl)
-            a.view.render_sides()
-            a.view.render_sensor()
-            a.view.update()
-            b.view.render_sides()
-            b.view.render_sensor()
-            b.view.update()
+            #a.view.render_sides()
+            #a.view.render_sensor()
+            #a.view.update()
+            #b.view.render_sides()
+            #b.view.render_sensor()
+            #b.view.update()
             yield
           
         for cell in cell_buffer:
@@ -564,6 +564,10 @@ class GameBoardStateBuild(GameBoardState):
         except:
             self.switch_state(GameBoardStateReady)
         SoundEffects.play('start')
+    
+    def draw(self):
+       # return
+        return super().draw()
     
     
 class GameBoardStateWating(GameBoardState):
@@ -803,4 +807,3 @@ EVENTS = [
 for event in EVENTS:
     EventableGameBoard.register_event_type('on_board_' + event)   
     
-print(Modes.EXTENDED.value)

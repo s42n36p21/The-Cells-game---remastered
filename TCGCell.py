@@ -18,6 +18,7 @@ class RULES: # ЗАДЕЛ НА БУДУЩЕЕ
     BLOCK_SURROUNDED = 0
     BLOCK_INSULAR = 1
     HIDE_MOD = 0
+    WALLS = 0
     
     @classmethod
     def context(cls, ctx=None):
@@ -279,25 +280,19 @@ def get_side(cell:CellModel, other: CellModel, dist=1):
     
 from pyglet.gl import *
 
-blend_src = GL_SRC_ALPHA
-blend_dest = GL_ONE_MINUS_SRC_ALPHA
+blend_src: int = GL_SRC_ALPHA
+blend_dest: int = GL_ONE_MINUS_SRC_ALPHA
+GOAST = 0
+OPACITY = 192
 
 class CellView:
     SENSOR_GROUP = Group(order=0)
     BODY_GROUP = Group(order=1)
     PARTICLE_GROUP = Group(order=2)
     
-    
-    SENSOR_GROUP.blend_src = GL_SRC_ALPHA
-    SENSOR_GROUP.blend_dest = GL_ONE_MINUS_SRC_ALPHA
-    
-    BODY_GROUP.blend_src = GL_SRC_ALPHA
-    BODY_GROUP.blend_dest = GL_ONE_MINUS_SRC_ALPHA
-    
-    PARTICLE_GROUP.blend_src = GL_SRC_ALPHA
-    PARTICLE_GROUP.blend_dest = GL_ONE_MINUS_SRC_ALPHA
-    
     SENSOR_TYPE = settings.sensor_type
+    
+    
     
     def __init__(self, cell_model: CellModel, batch=None):
         self.model = cell_model
@@ -318,6 +313,8 @@ class CellView:
         self.sensor = None
         
         self.result = None
+        
+        
     
     def _setup(self):
         self.render_batch = Batch()
@@ -339,6 +336,9 @@ class CellView:
             f_side |= get_side(self.model, cell, 2) << 4
         
         row, col = self.model.position
+        
+        x, y = TILE_SIZE * col, TILE_SIZE * row
+        xx, yy = x + TILE_SIZE , y + TILE_SIZE,
 
         blend_dest = GL_ONE_MINUS_SRC_ALPHA
         blend_src = GL_SRC_ALPHA
@@ -347,9 +347,33 @@ class CellView:
                               batch=self.render_batch, group=self.PARTICLE_GROUP,
                               blend_dest=blend_dest, blend_src=blend_src) \
             for index, side in enumerate(SIDES) if (side & f_side) == side]
+        if RULES.WALLS:
+            WALL_COLOR = (48,24,7)
+            self.walls = []
+            pad = PAD / 2
+            if not (N2N & f_side):
+                self.walls.append(Rectangle(x-pad, yy-pad, TILE_SIZE+2*pad, pad*2, batch=self.batch, color=WALL_COLOR))
+            if not E2E & f_side:
+                self.walls.append(Rectangle(xx-pad, y-pad, pad*2, TILE_SIZE+2*pad, batch=self.batch, color=WALL_COLOR))
+            if not S2S & f_side:
+                self.walls.append(Rectangle(x-pad, y-pad, TILE_SIZE+2*pad, pad*2, batch=self.batch, color=WALL_COLOR))
+            if not W2W & f_side:
+                self.walls.append(Rectangle(x-pad, y-pad, pad*2, TILE_SIZE+2*pad, batch=self.batch, color=WALL_COLOR))
+            
         for s in self.sides:
-            s.scale = 2
-                   
+                s.scale = 2
+                
+    def goast(self):
+        if not GOAST:
+            return
+        
+        for s in self.sides:
+            s.opacity = OPACITY
+        self.body.opacity = OPACITY
+        if self.sensor:
+            self.sensor.opacity = OPACITY
+        self.display.opacity = OPACITY        
+           
     def render_sensor(self):
 
         if self.sensor is not None:
@@ -377,6 +401,7 @@ class CellView:
     def update(self):
         if self.sensor is None:
             return
+        self.goast()
         try:
             owner = RULES._context.players.ptr.value
         except:
@@ -493,6 +518,7 @@ class VoidCellView(CellView):
                                group=self.PARTICLE_GROUP, batch=self.render_batch)
             
     def update(self):
+        self.goast()
         self.render()
     
     
@@ -658,5 +684,23 @@ class MagicCellPortF(MagicCell):
     def __init__(self, position, batch, port=213):
         super().__init__(position, batch, port)
 
+class LogicCellModel(CellModel):
+    def is_full(self):
+        return self.owner != Energy.NEUTRAL and self.power != 0
+    
+    def reaction(self):
+        if self.power >= self.lim_power():
+            self.power = 0
+            for cell in self.outgoing_links:
+                cell.charge(self.owner)
+        else:
+            self.power = 0
+            
+class LogicCell(Cell):
+    def __init__(self, position, batch):
+        self.model = LogicCellModel(position)
+        self.view = CellView(self.model, batch)
+    
+
 TYPE_CELL = [Cell, CloseCell, VoidCell, ProtectedCell,
-             MagicCellPortA, MagicCellPortB, MagicCellPortC, MagicCellPortD, MagicCellPortE,MagicCellPortF]
+             MagicCellPortA, MagicCellPortB, MagicCellPortC, MagicCellPortD, MagicCellPortE,MagicCellPortF, LogicCell]
