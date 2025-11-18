@@ -11,6 +11,7 @@ from collections import deque
 import logging
 from pyglet.event import EventDispatcher
 from server import Protocol
+from hashlib import sha256
 
 logging.basicConfig(level=logging.INFO)
 
@@ -154,9 +155,11 @@ NetClient.register_event_type("on_disconnect")
 NetClient.register_event_type("on_receive")
 
 class GameClient(NetClient):
-    def __init__(self, server_host, server_port, password, player_name):
+    def __init__(self, server_host, server_port, password:str, player_name):
         self.player_name = player_name
         self.password = password
+        if self.password:
+            self.password = sha256(self.password.encode('utf-8')).hexdigest()
         self.heartbeat_count = 0
         self.ack = True
         super().__init__(server_host, server_port)
