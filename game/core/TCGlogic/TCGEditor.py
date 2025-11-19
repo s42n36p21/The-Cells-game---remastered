@@ -1,8 +1,8 @@
 from pyglet.window.mouse import MouseStateHandler, LEFT
 from pyglet.window.key import KeyStateHandler
-from TCGCell import TILE_SIZE, TYPE_CELL, get_side
-from TCGtools import Hover, link_cell
-from Camera import Camera
+from .TCGCell import TILE_SIZE, TYPE_CELL, get_side
+from .TCGtools import Hover, link_cell
+from core.Pyglet.Camera import Camera
 from pyglet.graphics import Batch
 
 def _world_position(mouse, camera: Camera):

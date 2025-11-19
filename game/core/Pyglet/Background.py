@@ -1,8 +1,11 @@
 import pyglet 
+from ..Settings import ASSET_DIR
 
 class Background:
     def __init__(self, tex, window, batch=None):
-        self.tex = pyglet.resource.texture(f'src/background/{tex}.png')
+        pyglet.resource.path.append(str(ASSET_DIR / 'background'))
+        pyglet.resource.reindex()
+        self.tex = pyglet.resource.texture(f'{tex}.png')
         self.window = window
         self.batch = batch or pyglet.graphics.Batch()
         

@@ -1,3 +1,7 @@
 # pycache
 __pycache__
 .pycache
+
+# bat files
+run.bat
+start_server.bat

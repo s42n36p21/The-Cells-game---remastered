@@ -10,7 +10,8 @@ import json
 from collections import deque
 import logging
 from pyglet.event import EventDispatcher
-from server import Protocol
+from .server import Protocol
+from hashlib import sha256
 
 logging.basicConfig(level=logging.INFO)
 
@@ -154,9 +155,15 @@ NetClient.register_event_type("on_disconnect")
 NetClient.register_event_type("on_receive")
 
 class GameClient(NetClient):
-    def __init__(self, server_host, server_port, password, player_name):
+    def __init__(self, server_host, server_port, server_password:str, account_password, player_name):
         self.player_name = player_name
-        self.password = password
+        self.server_password = server_password
+        if self.server_password:
+            self.server_password = sha256(self.server_password.encode('utf-8')).hexdigest()
+        self.account_password = account_password
+        if not self.account_password:
+            raise ValueError("Пароль аккаунта не указан")
+        self.account_password = sha256(self.account_password.encode('utf-8')).hexdigest()
         self.heartbeat_count = 0
         self.ack = True
         super().__init__(server_host, server_port)
@@ -169,7 +176,7 @@ class GameClient(NetClient):
         )
 
     def on_connect(self):
-        self.send({"code":Protocol.CODE.HELLO.value, "name":self.player_name, "password":self.password})
+        self.send({"code":Protocol.CODE.HELLO.value, "name":self.player_name, "password":self.server_password, "account_password": self.account_password})
 
     def on_receive(self, update:dict):
         code = Protocol.CODE(update.get("code"))
@@ -178,7 +185,9 @@ class GameClient(NetClient):
                 self.ack=True
                 self.dispatch_event("heartbeat_ack")
             case Protocol.CODE.WRONG_PASSWORD:
-                raise PermissionError("Неправильный пароль")
+                raise PermissionError("Неправильный пароль для сервера")
+            case Protocol.CODE.WRONG_PASSWORD_2:
+                raise PermissionError("Неправильный пароль для аккаунта")
             case Protocol.CODE.WELCOME:
                 scheme = update.get("scheme")
                 players = update.get("players")
@@ -200,7 +209,8 @@ class GameClient(NetClient):
                 self.dispatch_event("on_game_start", players)
             case Protocol.CODE.CLIENT_DISCONNECTED:
                 player_name = update.get("name")
-                self.dispatch_event("on_player_disconnect", player_name)
+                exit = update.get("exit")
+                self.dispatch_event("on_player_disconnect", player_name, exit)
 
     def update(self):
         self.heartbeat_count = (self.heartbeat_count + 1) % 300
@@ -214,7 +224,7 @@ class GameClient(NetClient):
     def heartbeat_ack(self):
         pass
 
-    def on_player_disconnect(self, player_name):
+    def on_player_disconnect(self, player_name, exit):
         pass
 
     def on_player_joined(self, player_name):

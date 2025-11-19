@@ -1,6 +1,6 @@
-from TCGCell import Cell, get_color, Energy, TILE_SIZE, get_side, TYPE_CELL, RULES
+from .TCGCell import Cell, get_color, Energy, TILE_SIZE, get_side, TYPE_CELL, RULES
 import pyglet
-from Settings import Settings
+from ..Settings import Settings, ASSET_DIR
 from random import shuffle
 from enum import Enum, auto
 from typing import Literal
@@ -17,11 +17,11 @@ class SoundEffects:
     SoundName = Literal['reaction', 'click', 'warn', 'start', 'game_over']
     
     sounds = {
-        'reaction': pyglet.media.load('src/sounds/boom.wav', streaming=False),
-        'click': pyglet.media.load('src/sounds/button.wav', streaming=False),
-        'warn': pyglet.media.load('src/sounds/error.wav', streaming=False),
-        'start': pyglet.media.load('src/sounds/start.wav', streaming=False),
-        'game_over': pyglet.media.load('src/sounds/win.wav', streaming=False)
+        'reaction': pyglet.media.load(ASSET_DIR / 'sounds/boom.wav', streaming=False),
+        'click': pyglet.media.load(ASSET_DIR / 'sounds/button.wav', streaming=False),
+        'warn': pyglet.media.load(ASSET_DIR / 'sounds/error.wav', streaming=False),
+        'start': pyglet.media.load(ASSET_DIR / 'sounds/start.wav', streaming=False),
+        'game_over': pyglet.media.load(ASSET_DIR / 'sounds/win.wav', streaming=False)
     }
     
     sound_enabled = settings.sound_effects
@@ -288,7 +288,7 @@ class Saver:
     }
 }
         
-from TCGtools import link_cell
+from .TCGtools import link_cell
 class Builder:
     def __init__(self, scheme, batch):
         self.scheme = scheme
@@ -696,7 +696,7 @@ class Tools(Enum):
     LINK = auto()
     DELETE = auto()
 
-from TCGEditor import Editor
+from .TCGEditor import Editor
 
 class GameBoardStateEdit(GameBoardState):
     def __init__(self, master):

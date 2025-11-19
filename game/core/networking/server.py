@@ -2,15 +2,16 @@ import asyncio
 from asyncio import StreamReader, StreamWriter
 import logging
 import json
+from hashlib import sha256
 from enum import Enum
 
-from TCGCell import P_ENERGY, Energy
+from core.TCGlogic.TCGCell import P_ENERGY, Energy
 from random import shuffle
 
-with open('3x3.json', 'r', encoding='utf-8') as file:
+with open('saves/3x3.json', 'r', encoding='utf-8') as file:
     SCHEME = json.load(file)
 
-with open('server.json', 'r', encoding='utf-8') as file:
+with open('settings/server.json', 'r', encoding='utf-8') as file:
     CONFIG = json.load(file)
 
 class Protocol:
@@ -33,22 +34,27 @@ class Protocol:
         PLAYER_PASS = 220
         PLAYER_QUIT = 230
         
-        WRONG_PASSWORD = 300   
+        WRONG_PASSWORD = 300
+        WRONG_PASSWORD_2 = 301
         
         START = 400
 
 class NetServer:
 
-    def __init__(self, server_port, connection_timeout=False):
+    def __init__(self, server_port, connection_timeout=False, allow_rejoin = True):
         self.server_port=server_port
         self.running=True
         self.server = None
+        self.rejoin = allow_rejoin
         self.timeout = connection_timeout
         self.connections = {}
-        self.db = {
-            "register":CONFIG
-        }
+        self.password = CONFIG.get('password', None)
+        if self.password:
+            self.password = sha256(self.password.encode('utf-8')).hexdigest()
         self.players = {}
+        self.db = {
+            "register": {}
+        }
         self.names_connections = {}
         self.logger = logging.getLogger(__name__)
         logging.basicConfig(level=logging.DEBUG)
@@ -74,9 +80,11 @@ class NetServer:
                 else:
                     data = await reader.readline()
                 if not data:
-                    self.logger.info(f"Клиент {client_address}:{client_port} отключился")
-                    self.connections.pop((client_address, client_port), None)
-                    await self.player_disconnected((client_address, client_port))
+                    if (client_address, client_port) in self.connections:
+                        self.logger.info(f"Клиент {client_address}:{client_port} отключился")
+                        self.connections.pop((client_address, client_port), None)
+                        if (client_address, client_port) in self.names_connections:
+                            await self.player_disconnected((client_address, client_port))
                     break
                 message = data.decode('utf-8')
                 if not message:
@@ -86,9 +94,11 @@ class NetServer:
         except TimeoutError:
             self.logger.info(f"Клиент {client_address}:{client_port} не отвечает")
         except ConnectionResetError:
-            self.logger.info(f"Клиент {client_address}:{client_port} отключился")
-            self.connections.pop((client_address, client_port), None)
-            await self.player_disconnected((client_address, client_port))
+            if (client_address, client_port) in self.connections:
+                self.logger.info(f"Клиент {client_address}:{client_port} отключился")
+                self.connections.pop((client_address, client_port), None)
+                if (client_address, client_port) in self.names_connections:
+                    await self.player_disconnected((client_address, client_port))
         except Exception as e:
             self.running=False
             self.logger.error("Ошибка: ", e)
@@ -96,7 +106,8 @@ class NetServer:
             writer.close()
             await writer.wait_closed()
             self.logger.info(f"Соединение с {client_address}:{client_port} закрыто")
-            await self.player_disconnected((client_address, client_port))
+            if (client_address, client_port) in self.names_connections:
+                await self.player_disconnected((client_address, client_port))
     
     async def send(self, writer:StreamWriter, message: dict):
         """Отправляет сообщение указанному клиенту в writer"""
@@ -104,19 +115,20 @@ class NetServer:
             writer.write(json.dumps(message).encode('utf-8')+b"\n")
             await writer.drain()
         else:
-            self.logger.error("Пидор закрыл соединение")
+            self.logger.error("Клиент закрыл соединение")
 
     async def close_client(self, connection):
         """Закрывает соединение с клиентом"""
         writer: StreamWriter = self.connections.pop(connection, None)
         if not writer:
-            self.logger.info("Пидор уже закрыт")
+            self.logger.info("Клиент уже отключен")
         if not writer.is_closing():
             self.logger.info(f"Закрытие соединения с клиентом {connection[0]}:{connection[1]}...")
             writer.close()
             await writer.wait_closed()
             self.logger.info(f"Клиент {connection[0]}:{connection[1]} был отключён!")
-            await self.player_disconnected(connection)
+            if connection in self.names_connections:
+                await self.player_disconnected(connection)
 
     async def close_all(self):
         """Полное отключение сервера"""
@@ -127,29 +139,44 @@ class NetServer:
         await self.server.wait_closed()
         self.logger.info(f"Сервер отключён!")
 
-    async def player_disconnected(self, connection):
+    async def player_disconnected(self, connection, exit:bool = False):
         name = self.names_connections.pop(connection)
         await self.broadcast({
             "code": Protocol.CODE.CLIENT_DISCONNECTED.value,
-            "name": name
-            }, [connection])
-        self.players.pop(name)
+            "name": name,
+            "exit": exit or not self.rejoin
+        }, [connection])
+        if exit or not self.rejoin:
+            self.players.pop(name)
 
-    async def join_player(self, connection, message):
+    def _check_acc_password(self, password, name) -> bool:
+        if not name in self.db["register"]:
+            self.db["register"].update({
+                name: password
+            })
+            return True
+        return self.db["register"].get(name) == password
+
+    async def join_player(self, connection, name, acc_password):
         writer = self.connections.get(connection)
-        self.logger.info('Пидор присоединился')
+        if not self._check_acc_password(acc_password, name):
+            await self.send(writer, {
+                        'code': Protocol.CODE.WRONG_PASSWORD_2.value
+                    })
+            return await self.close_client(connection)
+        self.logger.info('Игрок присоединился')
        
         await self.send(writer, {
             'code': Protocol.CODE.WELCOME.value,
             'scheme': SCHEME, 'players': self.players
         })
         
-        self.names_connections.update({connection: message.get("name")})
-
-        self.players[message.get('name')] = {'name':message.get('name'), "position": (0,0)}
+        self.names_connections.update({connection: name})
+        if name not in self.players:
+            self.players[name] = {'name':name, "position": (0,0)}
         
-        msg = {"code": Protocol.CODE.NEW_PLAYER.value, "name": message.get('name')}
-        await self.broadcast(msg, [connection])
+            msg = {"code": Protocol.CODE.NEW_PLAYER.value, "name": name}
+            await self.broadcast(msg, [connection])
 
     async def handle_message(self, connection: tuple, message: dict):
         code = Protocol.CODE(message.get('code'))
@@ -164,17 +191,18 @@ class NetServer:
                 self.logger.info("Попытка входа клиента")
                 name = message.get('name')
                 password = message.get('password')
-                if self.db['register'].get(name):
-                    if self.db['register'].get(name) == password:
-                        await self.join_player(connection, message)
-                    else:
-                        await self.send(writer, {
-                            'code': Protocol.CODE.WRONG_PASSWORD.value
-                        })
-                        await self.close_client(connection)
+                acc_password = message.get('account_password')
+                if not self.password:
+                    await self.join_player(connection, name, acc_password)
+                    return
+                if self.password == password:
+                    await self.join_player(connection, name, acc_password)
+                    return
                 else:
-                    self.db['register'][name] = password
-                    await self.join_player(connection, message)
+                    await self.send(writer, {
+                        'code': Protocol.CODE.WRONG_PASSWORD.value
+                    })
+                    await self.close_client(connection)
                     
                     
             case Protocol.CODE.MOVE:
@@ -196,18 +224,24 @@ class NetServer:
                     {'code':Protocol.CODE.PLAYER_HIT.value, 'hit': message.get('hit'), 'name': message.get('name')}
                 )
             case Protocol.CODE.PASS:1
-            case Protocol.CODE.QUIT:1
+            case Protocol.CODE.QUIT:
+                self.logger.info("Игрок вышел")
+                await self.player_disconnected(connection, exit=True)
             case Protocol.CODE.READY:
                 
                 name = message.get('name')
                 self.players[name]['ready'] = True
-                print([p.get('ready') for p in self.players.values()])
-                if all([p.get('ready') for p in self.players.values()]):
+                self.logger.info(f"Игроки готовы: {[k for k, v in self.players.items() if v.get('ready', None)]}")
+                if all([p.get('ready') for p in self.players.values()]) and len(self.players)>1:
                     self.logger.info("Запуск игры")
                     l = P_ENERGY
                     shuffle(l)
                     players = list(zip(self.players, [i.value for i in l]))
                     await self.broadcast({'code':Protocol.CODE.START.value, 'players': players})
+                elif len(self.players)==1:
+                    self.logger.info("Недостаточно игроков для начала игры")
+                else:
+                    self.logger.info("Не все игроки проголосовали за запуск игры")
 
     async def broadcast(self, message:dict, exclude:list[tuple] | None = None):
         """Передача сообщения всем клиентам, которые не находятся в списке exclude"""
