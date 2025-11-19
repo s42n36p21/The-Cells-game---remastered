@@ -26,8 +26,11 @@ from TCGCell import TILE_SIZE, PAD, RULES
 import random
 with open('server.json', 'r', encoding='utf-8') as file:
     NET = json.load(file)
+
+with open('account.json', 'r', encoding='utf-8') as file:
+    ACCOUNT = json.load(file)
     
-NAME = NET.get('name')
+NAME = ACCOUNT.get('name')
 if NAME is None:
     NAME = 'Player' + str(random.randint(1, 99))
 
@@ -335,7 +338,7 @@ class TCGNetWorkGame(Scene):
         self.hits = []
         self.flag = False
         
-        self.client = GameClient(HOST, PORT, NET.get('password'), NAME)
+        self.client = GameClient(HOST, PORT, NET.get('password'), ACCOUNT.get('password'), NAME)
         self.client.push_handlers(self)
         self.camera.update_projection()
         
@@ -378,16 +381,24 @@ class TCGNetWorkGame(Scene):
     def on_player_hit(self, player_name, hit):
         self.hits.append(hit)
 
-    def on_player_disconnect(self, player_name):
+    def on_player_disconnect(self, player_name, exit):
         """Если отключился КАКОЙ-ТО игрок"""
-        self.remote_players.pop(player_name)
+        if exit:
+            return self.remote_players.pop(player_name)
+        print(f"{player_name} вышел, однако флаг exit=False")
 
     def on_disconnect(self):
         """Если МЫ САМИ отключились"""
         def task():
             self._master._scene = Menu(self._master)
         self.tasks.append(task)
-        # можно, например, перемещать в меню, если отключились
+
+    def on_close(self):
+        self.client.send(
+            {
+                "code": Protocol.CODE.QUIT.value,
+            }
+        )
 
     def debug(self):
         x ,y = self.camera.screen_to_world(self.mouse.data.get('x',0), self.mouse.data.get('y',0))

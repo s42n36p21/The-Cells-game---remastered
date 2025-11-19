@@ -34,22 +34,27 @@ class Protocol:
         PLAYER_PASS = 220
         PLAYER_QUIT = 230
         
-        WRONG_PASSWORD = 300   
+        WRONG_PASSWORD = 300
+        WRONG_PASSWORD_2 = 301
         
         START = 400
 
 class NetServer:
 
-    def __init__(self, server_port, connection_timeout=False):
+    def __init__(self, server_port, connection_timeout=False, allow_rejoin = True):
         self.server_port=server_port
         self.running=True
         self.server = None
+        self.rejoin = allow_rejoin
         self.timeout = connection_timeout
         self.connections = {}
         self.password = CONFIG.get('password', None)
         if self.password:
-            self.password = sha256(self.password.encode('utf-8'))
+            self.password = sha256(self.password.encode('utf-8')).hexdigest()
         self.players = {}
+        self.db = {
+            "register": {}
+        }
         self.names_connections = {}
         self.logger = logging.getLogger(__name__)
         logging.basicConfig(level=logging.DEBUG)
@@ -134,16 +139,31 @@ class NetServer:
         await self.server.wait_closed()
         self.logger.info(f"Сервер отключён!")
 
-    async def player_disconnected(self, connection):
+    async def player_disconnected(self, connection, exit:bool = False):
         name = self.names_connections.pop(connection)
         await self.broadcast({
             "code": Protocol.CODE.CLIENT_DISCONNECTED.value,
-            "name": name
-            }, [connection])
-        self.players.pop(name)
+            "name": name,
+            "exit": exit or not self.rejoin
+        }, [connection])
+        if exit or not self.rejoin:
+            self.players.pop(name)
 
-    async def join_player(self, connection, message):
+    def _check_acc_password(self, password, name) -> bool:
+        if not name in self.db["register"]:
+            self.db["register"].update({
+                name: password
+            })
+            return True
+        return self.db["register"].get(name) == password
+
+    async def join_player(self, connection, name, acc_password):
         writer = self.connections.get(connection)
+        if not self._check_acc_password(acc_password, name):
+            await self.send(writer, {
+                        'code': Protocol.CODE.WRONG_PASSWORD_2.value
+                    })
+            return await self.close_client(connection)
         self.logger.info('Пидор присоединился')
        
         await self.send(writer, {
@@ -151,12 +171,12 @@ class NetServer:
             'scheme': SCHEME, 'players': self.players
         })
         
-        self.names_connections.update({connection: message.get("name")})
-
-        self.players[message.get('name')] = {'name':message.get('name'), "position": (0,0)}
+        self.names_connections.update({connection: name})
+        if name not in self.players:
+            self.players[name] = {'name':name, "position": (0,0)}
         
-        msg = {"code": Protocol.CODE.NEW_PLAYER.value, "name": message.get('name')}
-        await self.broadcast(msg, [connection])
+            msg = {"code": Protocol.CODE.NEW_PLAYER.value, "name": name}
+            await self.broadcast(msg, [connection])
 
     async def handle_message(self, connection: tuple, message: dict):
         code = Protocol.CODE(message.get('code'))
@@ -171,11 +191,12 @@ class NetServer:
                 self.logger.info("Попытка входа клиента")
                 name = message.get('name')
                 password = message.get('password')
-                if self.password is None:
-                    await self.join_player(connection, message)
+                acc_password = message.get('account_password')
+                if not self.password:
+                    await self.join_player(connection, name, acc_password)
                     return
-                if self.password.hexdigest() == password:
-                    await self.join_player(connection, message)
+                if self.password == password:
+                    await self.join_player(connection, name, acc_password)
                     return
                 else:
                     await self.send(writer, {
@@ -203,7 +224,9 @@ class NetServer:
                     {'code':Protocol.CODE.PLAYER_HIT.value, 'hit': message.get('hit'), 'name': message.get('name')}
                 )
             case Protocol.CODE.PASS:1
-            case Protocol.CODE.QUIT:1
+            case Protocol.CODE.QUIT:
+                self.logger.info("Игрок вышел")
+                await self.player_disconnected(connection, exit=True)
             case Protocol.CODE.READY:
                 
                 name = message.get('name')
