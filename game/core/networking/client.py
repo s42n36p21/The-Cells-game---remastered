@@ -10,7 +10,7 @@ import json
 from collections import deque
 import logging
 from pyglet.event import EventDispatcher
-from server import Protocol
+from .server import Protocol
 from hashlib import sha256
 
 logging.basicConfig(level=logging.INFO)

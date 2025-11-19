@@ -1,6 +1,6 @@
 import pyglet
 from pyglet.shapes import Rectangle
-from util import MouseEvent, rgba
+from core.Pyglet.util import MouseEvent, rgba
 from pyglet.math import Vec4
 
 

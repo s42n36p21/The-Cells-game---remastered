@@ -1,6 +1,9 @@
 import configparser
+from pathlib import Path
 
-PATH = 'src/settings.cfg'
+ASSET_DIR = Path(__file__).parent.parent.resolve() / "src"
+
+PATH = '././settings/settings.cfg'
 
 class Settings:
     _instance = None

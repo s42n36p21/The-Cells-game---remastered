@@ -1,6 +1,6 @@
 from enum import Enum, auto
 from typing import List, Tuple
-from Settings import Settings
+from ..Settings import Settings
 from pyglet.graphics import Batch, Group
 from pyglet.sprite import Sprite
 from pyglet.image import load
@@ -10,6 +10,7 @@ from pyglet.text import Label
 from colorsys import hsv_to_rgb
 from collections import deque
 import pyglet
+from ..Settings import ASSET_DIR
 #from TCGBoard import GameBoard
 
 
@@ -89,26 +90,26 @@ def load_pixel_texture(filename):
     return texture
 
 
-img_body = load_pixel_texture('src/cell.png')
-img_magic_body = load_pixel_texture('src/magic_cell.png')
-img_close_body = load_pixel_texture('src/close_cell.png')
+img_body = load_pixel_texture(ASSET_DIR / 'cell.png')
+img_magic_body = load_pixel_texture(ASSET_DIR / 'magic_cell.png')
+img_close_body = load_pixel_texture(ASSET_DIR / 'close_cell.png')
 
-img_n = load_pixel_texture('src/N.png')
-img_e = load_pixel_texture('src/E.png')
-img_s = load_pixel_texture('src/S.png')
-img_w = load_pixel_texture('src/W.png')
+img_n = load_pixel_texture(ASSET_DIR / 'N.png')
+img_e = load_pixel_texture(ASSET_DIR / 'E.png')
+img_s = load_pixel_texture(ASSET_DIR / 'S.png')
+img_w = load_pixel_texture(ASSET_DIR / 'W.png')
 img_side = [img_n,img_e,img_s,img_w]
 
-img_2n = load_pixel_texture('src/2N.png')
-img_2e = load_pixel_texture('src/2E.png')
-img_2s = load_pixel_texture('src/2S.png')
-img_2w = load_pixel_texture('src/2W.png')
+img_2n = load_pixel_texture(ASSET_DIR / '2N.png')
+img_2e = load_pixel_texture(ASSET_DIR / '2E.png')
+img_2s = load_pixel_texture(ASSET_DIR / '2S.png')
+img_2w = load_pixel_texture(ASSET_DIR / '2W.png')
 img_2side = [img_2n,img_2e,img_2s,img_2w]
 
-img_n2n = load_pixel_texture('src/N2N.png')
-img_e2e = load_pixel_texture('src/E2E.png')
-img_s2s = load_pixel_texture('src/S2S.png')
-img_w2w = load_pixel_texture('src/W2W.png')
+img_n2n = load_pixel_texture(ASSET_DIR / 'N2N.png')
+img_e2e = load_pixel_texture(ASSET_DIR / 'E2E.png')
+img_s2s = load_pixel_texture(ASSET_DIR / 'S2S.png')
+img_w2w = load_pixel_texture(ASSET_DIR / 'W2W.png')
 img_D2side = [img_n2n,img_e2e,img_s2s,img_w2w]
 
 TILE_SIZE = 64

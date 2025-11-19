@@ -5,13 +5,13 @@ import json
 from hashlib import sha256
 from enum import Enum
 
-from TCGCell import P_ENERGY, Energy
+from core.TCGlogic.TCGCell import P_ENERGY, Energy
 from random import shuffle
 
-with open('3x3.json', 'r', encoding='utf-8') as file:
+with open('saves/3x3.json', 'r', encoding='utf-8') as file:
     SCHEME = json.load(file)
 
-with open('server.json', 'r', encoding='utf-8') as file:
+with open('settings/server.json', 'r', encoding='utf-8') as file:
     CONFIG = json.load(file)
 
 class Protocol:
@@ -115,13 +115,13 @@ class NetServer:
             writer.write(json.dumps(message).encode('utf-8')+b"\n")
             await writer.drain()
         else:
-            self.logger.error("Пидор закрыл соединение")
+            self.logger.error("Клиент закрыл соединение")
 
     async def close_client(self, connection):
         """Закрывает соединение с клиентом"""
         writer: StreamWriter = self.connections.pop(connection, None)
         if not writer:
-            self.logger.info("Пидор уже закрыт")
+            self.logger.info("Клиент уже отключен")
         if not writer.is_closing():
             self.logger.info(f"Закрытие соединения с клиентом {connection[0]}:{connection[1]}...")
             writer.close()
@@ -164,7 +164,7 @@ class NetServer:
                         'code': Protocol.CODE.WRONG_PASSWORD_2.value
                     })
             return await self.close_client(connection)
-        self.logger.info('Пидор присоединился')
+        self.logger.info('Игрок присоединился')
        
         await self.send(writer, {
             'code': Protocol.CODE.WELCOME.value,

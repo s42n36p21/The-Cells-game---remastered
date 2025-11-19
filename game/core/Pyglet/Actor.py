@@ -7,6 +7,7 @@ from pyglet.math import Vec2
 from pyglet.text import Label
 from pyglet.graphics import Batch, shader
 from collections import deque
+from ..Settings import ASSET_DIR
 import time
 
 def load_pixel_art_texture(filename):

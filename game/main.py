@@ -2,32 +2,32 @@ import pyglet
 pyglet.options['debug_gl'] = False
 #pyglet.options.text_antialiasing = False
 #pyglet.options.text_shaping = False
-from Background import Background
+from core.Pyglet.Background import Background
 from pyglet.window.key import KeyStateHandler, symbol_string
 from pyglet.window.mouse import MouseStateHandler
-from Camera import ControllableCamera as Camera
-from Settings import Settings
-from Actor import Player, MoveableActor as Actor
-from Debuger import Debuger
-from TCGCell import Energy, get_color
-from TCGBoard import GameStateAttribute as GSA, GameBoard
-from TCGtools import Cursor, HoverInspector
-from TCGBoard import Modes
-from Scene import Scene
+from core.Pyglet.Camera import ControllableCamera as Camera
+from core.Settings import Settings, ASSET_DIR
+from core.Pyglet.Actor import Player, MoveableActor as Actor
+from core.Pyglet.Debuger import Debuger
+from core.TCGlogic.TCGCell import Energy, get_color
+from core.TCGlogic.TCGBoard import GameStateAttribute as GSA, GameBoard
+from core.TCGlogic.TCGtools import Cursor, HoverInspector
+from core.TCGlogic.TCGBoard import Modes
+from core.Pyglet.Scene import Scene
 import json
 from pyglet.math import Vec2
-from client import GameClient
-from server import Protocol
-from widgets import Panel, PanelButton, PanelTextButton
+from core.networking.client import GameClient
+from core.networking.server import Protocol
+from core.Pyglet.widgets import Panel, PanelButton, PanelTextButton
 from time import time
-from TCGBoard import GameBoardStateEdit, GameBoardStateWating, GameBoardStateReaction, GameStateAttribute
-from TCGCell import TILE_SIZE, PAD, RULES
+from core.TCGlogic.TCGBoard import GameBoardStateEdit, GameBoardStateWating, GameBoardStateReaction, GameStateAttribute
+from core.TCGlogic.TCGCell import TILE_SIZE, PAD, RULES
 
 import random
-with open('server.json', 'r', encoding='utf-8') as file:
+with open('settings/server.json', 'r', encoding='utf-8') as file:
     NET = json.load(file)
 
-with open('account.json', 'r', encoding='utf-8') as file:
+with open('settings/account.json', 'r', encoding='utf-8') as file:
     ACCOUNT = json.load(file)
     
 NAME = ACCOUNT.get('name')
@@ -83,7 +83,7 @@ class HotKeys:
             game: GameBoard  = self.master.game
             s = game.save(mod=Modes.EXTENDED)
             from time import time
-            with open(f'{time()}.json', 'w', encoding='utf-8') as file:
+            with open(f'saves/{time()}.json', 'w', encoding='utf-8') as file:
                 json.dump(s, file, ensure_ascii=False, indent=4)
                      
         elif key == pyglet.window.key.B:
@@ -136,14 +136,14 @@ class HotKeys:
 
         elif key in tool:
             if self.master.game.phase() == GSA.EDIT:
-                from TCGEditor import CreateCell, DeleteCell, Link, UnLink, FlexLink, ClearLink
+                from core.TCGlogic.TCGEditor import CreateCell, DeleteCell, Link, UnLink, FlexLink, ClearLink
 
                 self.master.game.state._editor.use([CreateCell, DeleteCell, Link, UnLink, FlexLink, ClearLink][tool.index(key)])
                 #self.master.game.state._select = None
         
         elif key in par:
             
-            from TCGEditor import ToolBox, TYPE_CELL
+            from core.TCGlogic.TCGEditor import ToolBox, TYPE_CELL
             p = par.index(key)
             t: ToolBox  = self.master.game.state._editor.tool_box
             match p:
@@ -182,7 +182,7 @@ def create_simple_scheme(r, c):
     return scheme
 
 def get_players(count):
-    from TCGCell import Energy
+    from core.TCGlogic.TCGCell import Energy
     from random import shuffle
     p = [Energy.P1,
             Energy.P2,
@@ -198,7 +198,7 @@ def get_players(count):
 
 
 SCHEME = create_simple_scheme(3, 3)
-with open('3x3.json', 'r', encoding='utf-8') as file:
+with open('saves/3x3.json', 'r', encoding='utf-8') as file:
     SCHEME = json.load(file)
 PLAYERS = get_players(settings.amount_players)
 
@@ -225,7 +225,7 @@ class TCGGame(Scene):
         self.hot_keys = HotKeys(self)
         self.hover = HoverInspector(self, self.game, self.batch)
         
-        self.player = Player(name="Kell", speed=250, img='src/actor.png', batch=self.batch)
+        self.player = Player(name="Kell", speed=250, img=ASSET_DIR / 'actor.png', batch=self.batch)
         self.push_handlers(self.player)
 
         self.player.attach_camera(self.camera)
@@ -325,7 +325,7 @@ class TCGNetWorkGame(Scene):
         self.hot_keys = HotKeys(self)
         self.hover = HoverInspector(self, self.game, self.batch)
 
-        self.player = Player(name=NAME, speed=250, img='src/actor.png', batch=self.batch)
+        self.player = Player(name=NAME, speed=250, img=ASSET_DIR / 'actor.png', batch=self.batch)
         self.push_handlers(self.player)
         
         self.key = KeyStateHandler()
@@ -354,11 +354,11 @@ class TCGNetWorkGame(Scene):
                 name = p.get('name')
                 position = p.get('position')
                 print(name, position)
-                self.remote_players.update({name: Actor(name=name, position=position, batch=self.batch, img='src/actor.png')})
+                self.remote_players.update({name: Actor(name=name, position=position, batch=self.batch, img=ASSET_DIR / 'actor.png')})
         self.tasks.append(f)
     
     def on_player_joined(self, player_name):
-        self.tasks.append(lambda: self.remote_players.update({player_name: Actor(name=player_name, batch=self.batch, img='src/actor.png')}))
+        self.tasks.append(lambda: self.remote_players.update({player_name: Actor(name=player_name, batch=self.batch, img=ASSET_DIR / 'actor.png')}))
     
     def on_player_moved(self, player_name, pos, moved_time):
         try:

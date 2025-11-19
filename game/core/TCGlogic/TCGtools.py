@@ -1,7 +1,7 @@
 import pyglet
 from pyglet.window.mouse import MouseStateHandler
-from TCGCell import get_color, TILE_SIZE, Cell, PAD
-from TCGBoard import GameStateAttribute as GSA
+from .TCGCell import get_color, TILE_SIZE, Cell, PAD
+from .TCGBoard import GameStateAttribute as GSA
 
 class Hover:
     def __init__(self, tile_size, padding, thickness=3, batch=None):
