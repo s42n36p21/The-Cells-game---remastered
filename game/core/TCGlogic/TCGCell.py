@@ -188,6 +188,7 @@ def get_color(energy):
 class CellModel:
     position: Tuple[int, int]
     owner: Energy
+    input_owner: Energy
     power: int
     input_power: int
     outgoing_links: List['CellModel']
@@ -197,6 +198,7 @@ class CellModel:
         self.position = tuple(position)
         self.owner = Energy.NEUTRAL
         self.power = 0
+        self.input_owner = None
         self.input_power = 0
         self.outgoing_links = []   # ссылки на другие клетки
         self.incoming_links = []   # ссылки от других клеток
@@ -235,13 +237,14 @@ class CellModel:
         
     def charge(self, owner, amount=1):
         self.input_power += amount
-        self.owner = owner
+        self.input_owner = owner if self.input_owner in [None, owner] else Energy.NEUTRAL
     
     def fill(self):
         self.power += self.input_power
         self.input_power = 0
-        self.owner = self.owner if self.power else Energy.NEUTRAL
-    
+        self.owner = (self.owner if self.input_owner is None else self.input_owner) if self.power else Energy.NEUTRAL
+        self.input_owner = None
+        
     def reaction(self):
         if self.is_full():
             self.power = 0
@@ -606,7 +609,8 @@ class MagicCellModel(CellModel):
         self.power += self.input_power
         self.input_power = 0
         if not any([cell.reacted for cell in self.origin.shadow]):
-            self.owner = self.owner if self.power else Energy.NEUTRAL
+            self.owner = (self.owner if self.input_owner is None else self.input_owner) if self.power else Energy.NEUTRAL
+            self.input_owner = None
     
     def reaction(self):
         self.reacted = True
