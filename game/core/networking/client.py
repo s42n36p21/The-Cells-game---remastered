@@ -92,7 +92,7 @@ class NetClient(EventDispatcher):
             while self.running:
                 read_sockets = [self.socket]
                 write_sockets = [self.socket] if self.input_queue else []
-                readable, writable, exceptional = select.select(read_sockets, write_sockets, read_sockets, 0.01)
+                readable, writable, exceptional = select.select(read_sockets, write_sockets, read_sockets, 0.001)
 
                 if self.socket in writable:
                     while self.input_queue:

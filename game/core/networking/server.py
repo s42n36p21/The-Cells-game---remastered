@@ -56,7 +56,7 @@ class NetServer:
             "register": {}
         }
         self.names_connections = {}
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger("server")
         logging.basicConfig(level=logging.DEBUG)
     
     async def start_forever(self):
