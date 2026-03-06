@@ -1,4 +1,125 @@
+from __future__ import annotations
 from pyglet.event import EventDispatcher
+from typing import (
+    TypeVar, 
+    Any, 
+    Optional, 
+    Iterable, 
+    Callable, 
+    overload, 
+    Coroutine, 
+    Union, 
+    AsyncIterable
+)
+
+T=TypeVar("T")
+
+Coro=Coroutine[Any, Any, T]
+
+def _attrgetter(o: object, attr: str) -> Any:
+    if "__" in attr:
+        for i, v in enumerate(attr.split("__")):
+            if i==0:
+                attribute=getattr(o, v)
+            else:
+                attribute=getattr(attribute, v)
+        return attribute
+    else:
+        return getattr(o, attr)
+
+async def _aget(Object: AsyncIterable[T], /, **attributes: Any) -> Coro[Optional[T]]:
+    async for item in Object:
+        if all(_attrgetter(item, key)==value for key, value in attributes.items()):
+            return item
+    return None
+
+def _get(Object: Iterable[T], /, **attributes: Any) -> Optional[T]:
+    for item in Object:
+        if all(_attrgetter(item, key)==value for key, value in attributes.items()):
+            return item
+    return None
+
+@overload
+def get(Object: AsyncIterable[T], /, **attributes: Any) -> Optional[T]:
+    ...
+
+@overload
+def get(Object: Iterable[T], /, **attributes: Any) -> Optional[T]:
+    ...
+
+
+
+def get(Object: Union[Iterable[T], AsyncIterable[T]], /, **attributes: Any) -> Union[Optional[T], Coro[Optional[T]]]:
+    """Возвращает объект в списке, атрибуты которого полностью совпадают
+    
+    Параметры
+    ----------
+    object: Iterable[T]
+        Список объектов для поиска
+    **attributes: Any
+        Список атрибутов типа ключ, значение для поиска совпадений
+
+        Если атрибут является другим объектом для поиска, то
+        можно использовать \"__\" для поиска атрибута.
+
+    Возвращает
+    ----------
+    Optional[T]
+        Если найден объект, атрибуты которого совпадают, то оно
+        возвращает этот объект
+
+        Если объект не найден, то возвращает None
+    """
+    if hasattr(Object, "__aiter__"):
+        return _aget(Object, **attributes)
+    else:
+        return _get(Object, **attributes)
+
+async def _afind(Object: AsyncIterable[T], /, predicate: Callable[[T], bool]) -> Optional[T]:
+    async for item in Object:
+        if predicate(item):
+            return item
+    else:
+        return None
+
+def _find(Object: Iterable[T], /, predicate: Callable[[T], bool]) -> Optional[T]:
+    for item in Object:
+        if predicate(item):
+            return item
+    else:
+        return None
+
+@overload
+def find(Object: AsyncIterable[T], predicate: Callable[[T], bool]) -> Coro[Optional[T]]:
+    ...
+
+@overload
+def find(Object: Iterable[T], predicate: Callable[[T], bool]) -> Optional[T]:
+    ...
+
+def find(Object: Union[Iterable[T], AsyncIterable[T]], predicate: Callable[[T], bool]) -> Union[Optional[T], Coro[Optional[T]]]:
+    """Возвращает объект в из списка, если функция `predicate` возвращает True
+
+    Параметры
+    ----------
+    object: Union[Iterable[T], AsyncIterable[T]]
+        Список объектов для поиска
+    predicate: Callable[[T], bool]
+        Функция для обработки
+        В неё передаётся объект из списка
+        Она должна возвращать `True` или `False`
+
+    Возвращает
+    ----------
+    Union[Optional[T], Coro[Optional[T]]]
+        Если найден объект, при котором `predicate` выдаёт `True`, то оно
+        возвращает этот объект
+
+        Если объект не найден, то возвращает `None`"""
+    if hasattr(Object, "__aiter__"):
+        return _afind(Object, predicate)
+    else:
+        return _find(Object, predicate)
 
 class MouseEvent(EventDispatcher):
     def on_mouse_drag(self, x, y, dx, dy, buttons, modifiers):

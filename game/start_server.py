@@ -1,3 +1,6 @@
+"""
+For server use only. For hosting your game, use `main.py`
+"""
 from core.networking.server import NetServer
 import json
 import asyncio

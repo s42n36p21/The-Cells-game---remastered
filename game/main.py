@@ -13,11 +13,13 @@ from core.TCGlogic.TCGCell import Energy, get_color
 from core.TCGlogic.TCGBoard import GameStateAttribute as GSA, GameBoard
 from core.TCGlogic.TCGtools import Cursor, HoverInspector
 from core.TCGlogic.TCGBoard import Modes
-from core.Pyglet.Scene import Scene
+from core.Pyglet.Scene import Scene, SettingsMenu
 import json
+import asyncio
+import threading
 from pyglet.math import Vec2
 from core.networking.client import GameClient
-from core.networking.server import Protocol
+from core.networking.server import Protocol, NetServer
 from core.Pyglet.widgets import Panel, PanelButton, PanelTextButton
 from time import time
 from core.TCGlogic.TCGBoard import GameBoardStateEdit, GameBoardStateWating, GameBoardStateReaction, GameStateAttribute
@@ -337,8 +339,12 @@ class TCGNetWorkGame(Scene):
         HOST, PORT = NET.get('ip', 'localhost'), int(NET.get('port',12345))
         self.hits = []
         self.flag = False
-        
-        self.client = GameClient(HOST, PORT, NET.get('password'), ACCOUNT.get('password'), NAME)
+        self.client = None
+        try:
+            self.client = GameClient(HOST, PORT, NET.get('password'), ACCOUNT.get('password'), NAME)
+        except ConnectionError:
+            self.on_disconnect()
+            return
         self.client.push_handlers(self)
         self.camera.update_projection()
         
@@ -394,16 +400,18 @@ class TCGNetWorkGame(Scene):
         self.tasks.append(task)
 
     def on_close(self):
-        self.client.send(
-            {
-                "code": Protocol.CODE.QUIT.value,
-            }
-        )
+        if self.client:
+            self.client.send(
+                {
+                    "code": Protocol.CODE.QUIT.value,
+                }
+            )
 
     def debug(self):
         x ,y = self.camera.screen_to_world(self.mouse.data.get('x',0), self.mouse.data.get('y',0))
         game = f'Phase: {self.game.phase().name}\n' + '' if self.game.state.phase() != GSA.EDIT else self.game.state._editor.debug()
-        return f'Cursor world position: x={x} y={y}\n' + game + str(self.remote_players) + f"\nTPS:{self.tps_count}" + f"\nHeartBeat:{self.client.heartbeat_count}"
+        net = f'\nTPS:{self.tps_count}\nHeartBeat:{self.client.heartbeat_count}' if self.client else ''
+        return f'Cursor world position: x={x} y={y}\n' + game + str(self.remote_players) + net
 
     def draw(self):
         with self.camera:
@@ -450,12 +458,13 @@ class TCGNetWorkGame(Scene):
         self.game.update(dt)
         new_pos = self.player.position
         
-        if self.tps_count == 0 and new_pos != self.old_pos:
+        if self.tps_count == 0 and new_pos != self.old_pos and self.client:
             message = {"code": Protocol.CODE.MOVE.value, "name": self.player.name, 'move': self.player.position, 'time': time()}
             self.client.send(message)
             self.old_pos = new_pos
 
-        self.client.update()
+        if self.client:
+            self.client.update()
         
         for t in self.tasks:
             t()
@@ -475,6 +484,13 @@ class TCGNetWorkGame(Scene):
             self.game.hit(r, c)
             self.flag = False
 
+def start_new_async_loop(loop: asyncio.AbstractEventLoop):
+    asyncio.set_event_loop(loop)
+    try:
+        loop.run_forever()
+    finally:
+        loop.close()
+
 class Menu(Scene):
     def setup(self):
         self.batch = pyglet.graphics.Batch()
@@ -488,9 +504,10 @@ class Menu(Scene):
         px, py = 340, 300
         bg = [(32,32,32, 128),(0,0,0, 128) ]
         self.ui = [
-            PanelTextButton('Локальная игра', (50,50, 150), (50, 50, 250), 24, px, h-py/2-50, w-px*2, h/3-100, *bg, .5,batch=self.batch),
-            PanelTextButton("Сетевая игра", (50,150, 50), (50, 250, 50), 24, px, h-py/2-h/3-50, w-px*2, h/3-100, *bg, .5,batch=self.batch),
-            PanelTextButton("Выйти",(150,50, 50), (250, 50, 50), 24, px, h-py/2-h/3-h/3-50, w-px*2, h/3-100, *bg, .5,batch=self.batch ),
+            PanelTextButton('Локальная игра', (50,50, 150), (50, 50, 250), 24, px, h-py/2, w-px*2, h/3-125, *bg, .5,batch=self.batch),
+            PanelTextButton("Сетевая игра (клиент)", (50,150, 50), (50, 250, 50), 24, px, h-py/2-h/4, w-px*2, h/3-125, *bg, .5,batch=self.batch),
+            PanelTextButton("Сетевая игра (хост)",(150, 150, 150), (200, 200, 200), 24, px, h-py/2-h/4-h/4, w-px*2, h/3-125, *bg, .5,batch=self.batch ),
+            PanelTextButton("Выйти",(150,50, 50), (250, 50, 50), 24, px, h-py/2-(h/4)*2-h/4, w-px*2, h/3-125, *bg, .5,batch=self.batch ),
         ]
 
         for ui in self.ui:
@@ -508,6 +525,13 @@ class Menu(Scene):
             case 'Локальная игра':
                 self._master._scene = TCGGame(self._master)
             case "Сетевая игра":
+                self._master._scene = TCGNetWorkGame(self._master)
+            case "Сетевая игра (хост)":
+                loop=asyncio.new_event_loop()
+                async_thread = threading.Thread(target=start_new_async_loop, args=[loop], daemon=True, name="AsyncServerThread")
+                async_thread.start()
+                server = NetServer(NET.get("port", 12345), connection_timeout=True)
+                loop.call_soon_threadsafe(asyncio.create_task, server.start_forever())
                 self._master._scene = TCGNetWorkGame(self._master)
             case "Выйти":
                 pyglet.app.exit()
