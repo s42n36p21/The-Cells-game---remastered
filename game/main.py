@@ -524,7 +524,7 @@ class Menu(Scene):
         match cmd:
             case 'Локальная игра':
                 self._master._scene = TCGGame(self._master)
-            case "Сетевая игра":
+            case "Сетевая игра (клиент)":
                 self._master._scene = TCGNetWorkGame(self._master)
             case "Сетевая игра (хост)":
                 loop=asyncio.new_event_loop()
